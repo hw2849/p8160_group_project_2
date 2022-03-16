@@ -1,1 +1,1 @@
-# p8160_group_project_2
+This is the repository for P8160 group project 2.
