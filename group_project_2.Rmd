@@ -1,0 +1,27 @@
+---
+title: "lasso-pathwise-cv"
+author: "hw2849"
+date: "3/15/2022"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE)
+
+library(tidyverse)
+library(readr)
+```
+
+## data import
+
+```{r}
+breast_dat = read_csv("./breast-cancer.csv")
+```
+
+## lasso
+
+## path-wise optimization
+
+## cross-validation
