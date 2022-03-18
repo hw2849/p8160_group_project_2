@@ -9,7 +9,7 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 library(tidyverse)
 library(caret)
-
+library(cvAUC)
 ```
 
 ## data import
