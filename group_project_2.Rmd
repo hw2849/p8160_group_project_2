@@ -139,10 +139,15 @@ cv = function(data, lambda, k) {
   
   #Create k equally size folds
   folds = cut(seq(1, nrow(data)), breaks = k,labels = FALSE)
+  auc <- vector()
+  se <- vector()
 
+  for (j in 1:length(lambda)) {
+    error = vector()
+  
   #Perform 10 fold cross validation
   for(i in 1:k){
-    start = rep(1,31)
+    start = rep(0, 31)
     
     #Segement data by fold using the which() function 
     testIndexes = which(folds == i, arr.ind = TRUE)
@@ -150,21 +155,24 @@ cv = function(data, lambda, k) {
     trainData = data[-testIndexes, ]
     
     #Use the test and train data partitions to perform lasso
-    coordwise_res = coordwise_lasso(lambda = lambda[i],
-                                     x = x,
-                                     y = y,
-                                     betastart = betastart)
+    coordwise_res = coordwise_lasso(lambda = lambda[j],
+                                     x = trainData$x,
+                                     y = trainData$y,
+                                     betastart = start)
     curbeta = coordwise_res[nrow(coordwise_res), 3:33]
-    betastart = curbeta
-    betas = rbind(betas, c(curbeta))
-    theta = x_standard %*% betavec
-    p = exp(theta) / (1 + exp(theta)) 
     
+    theta = as.matrix(testData$x) %*% as.matrix(curbeta)
+    p = exp(theta) / (1 + exp(theta)) 
+    error[i] = AUC(p, testData$y)
   }
-  return(lambda)
+    auc[j] = mean(error)
+    se[j] = sqrt(var(error) / k)
+
+  }
+  return(cbind(lambda, auc, se))
 }
 
-cv_test = cv(data = breast_dat, lambda = exp(seq(4, -4, length = 30), k = 5))
+cv_test = cv(data = breast_dat, lambda = exp(seq(4, -4, length = 30)), k = 5)
   
 ```
 
