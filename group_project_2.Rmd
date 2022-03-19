@@ -9,7 +9,7 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 library(tidyverse)
 library(caret)
-library(cvAUC)
+library(pROC)
 ```
 
 ## data import
@@ -65,9 +65,30 @@ coordwise_lasso <- function(lambda, x, y, betastart, tol = exp(-10), maxiter = 1
   }
   return(res)
 }
-coordwise_res <- coordwise_lasso(lambda = 2, x, y, betastart = rep(0, 31)) #include intercept?
+coordwise_res <- coordwise_lasso(lambda = 2, x, y, betastart = rep(0, 31))
 coordwise_res[nrow(coordwise_res), ]
 ```
+
+We need to calculate lambdamax first to define a sequence of lambda. 
+```{r}
+x.matrix <- as.matrix(x)
+#create a list to store for loop results
+resls <- list()
+lambdamax <- function(matrix, vector) {
+  for (i in 1:ncol(matrix)) {
+    res <- matrix[, i] * y
+    maxres <- max(res)
+    resls[[i]] <- maxres
+  }
+  return(resls)
+}
+
+lambda_ls <- lambdamax(x.matrix, y) 
+lambda_df <- as.data.frame(do.call(rbind, lambda_ls))
+maxlambda <- max(lambda_df$V1) / nrow(y)
+maxlambda
+```
+
 
 ```{r}
 #a path of solutions
@@ -87,29 +108,9 @@ pathwise <- function(x, y, lambda) {
   return(data.frame(cbind(lambda, betas)))
 }
 
-pathwise_sol <- pathwise(x, y, lambda = exp(seq(4, -4, length = 30)))
+pathwise_sol <- pathwise(x, y, lambda = seq(8, 0, length = 30))
+pathwise_sol
 ```
-
-
-```{r}
-x.matrix <- as.matrix(x)
-resls <- list()
-lambdamax <- function(matrix, vector) {
-  for (i in 1:ncol(matrix)) {
-    res <- matrix[, i] * y
-    maxres <- max(res)
-    resls[[i]] <- maxres
-  }
-  return(resls)
-}
-
-lambdalist <- lambdamax(x.matrix, y) 
-lambdadf <- as.data.frame(do.call(rbind, lambdalist))
-maxlambda <- max(lambdadf$V1)
-maxlambda
-```
-
-
 
 
 ## cross-validation
@@ -134,45 +135,58 @@ k-fold cv code reference: (https://stats.stackexchange.com/questions/61090/how-t
 ```{r cross validation}
 set.seed(8160)
 
-cv = function(data, lambda, k) {
-  data = data[sample(1:nrow(data)), ]
+cv = function(data, lambda) {
+  n <- nrow(data)
+  data <- data[sample(n), ] #shuffle the data
+  folds <- cut(seq(1, nrow(data)), breaks = 5, labels = FALSE) #Create 5 equally size folds
+  mse <- data.frame() #a data frame storing mse results
+  mse_lambda <- vector()
+  #se <- vector() #a vectro storing test errors
   
-  #Create k equally size folds
-  folds = cut(seq(1, nrow(data)), breaks = k,labels = FALSE)
-  auc <- vector()
-  se <- vector()
-
-  for (j in 1:length(lambda)) {
-    error = vector()
-  
-  #Perform 10 fold cross validation
-  for(i in 1:k){
-    start = rep(0, 31)
-    
-    #Segement data by fold using the which() function 
-    testIndexes = which(folds == i, arr.ind = TRUE)
-    testData = data[testIndexes, ]
-    trainData = data[-testIndexes, ]
-    
+    #Perform 5 fold cross validation
+  for(i in 1:5){
+    betastart <- rep(0, 31)
+    #partition the data into train and test data
+    testRows <- which(folds == i, arr.ind = TRUE)
+    data_test <- data[testRows, ]
+    data_train <- data[-testRows, ]
+    x_train <- data_train[2:31]
+    y_train <- data_train[1]
+    x_test <- data_test[2:31]
+    x_test_stan <- cbind(rep(1, nrow(x_test)), scale(x_test))
+    y_test <- data_test[1]
     #Use the test and train data partitions to perform lasso
-    coordwise_res = coordwise_lasso(lambda = lambda[j],
-                                     x = trainData$x,
-                                     y = trainData$y,
-                                     betastart = start)
-    curbeta = coordwise_res[nrow(coordwise_res), 3:33]
-    
-    theta = as.matrix(testData$x) %*% as.matrix(curbeta)
-    p = exp(theta) / (1 + exp(theta)) 
-    error[i] = AUC(p, testData$y)
+    path_sol <- pathwise(x = x_train,
+                         y = y_train,
+                         lambda = lambda)
+    error <- vector()
+    for (j in 1:length(lambda)) {
+      curbeta <- path_sol[j, 2:32]
+      theta <- x_test_stan %*% curbeta
+      p <- exp(theta) / (1 + exp(theta)) 
+      error[j] <- (p - y_test)^2
+    }
+    mse[i] <- error
   }
-    auc[j] = mean(error)
-    se[j] = sqrt(var(error) / k)
-
-  }
-  return(cbind(lambda, auc, se))
+    #se[j] <- sqrt(var(error)/5)
+  mse_lambda <- rowMeans(mse)
+  return(cbind(lambda, mse_lambda))
 }
 
-cv_test = cv(data = breast_dat, lambda = exp(seq(4, -4, length = 30)), k = 5)
-  
+cv_test = cv(data = breast_dat, lambda = seq(5, 0, length = 20))
+```
+
+
+```{r}
+#breast_dat[sample(nrow(breast_dat)), ]
+#folds <- cut(seq(1, nrow(breast_dat)), breaks = 5, labels = FALSE)
+#testIndexes = which(folds == 1, arr.ind = TRUE)
+#x_train <- breast_dat[-testIndexes, 2:31]
+#y_train <- breast_dat[-testIndexes, 1]
+#aa <- coordwise_lasso(lambda = 0.5, x_train, y_train, betastart = rep(0, 31))
+#nrow(aa)
+#as.matrix
+
+
 ```
 
