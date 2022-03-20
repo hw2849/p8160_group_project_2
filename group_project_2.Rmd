@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 library(tidyverse)
 library(caret)
 library(pROC)
+library(glmnet)
 ```
 
 ## data import
@@ -18,6 +19,7 @@ breast_dat = read_csv("breast-cancer.csv") %>%
   select(-1, -33) %>% 
   janitor::clean_names() %>% 
   mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0))
+
 
 head(breast_dat, 5)
 x <- breast_dat[2:31] #predictors
@@ -28,7 +30,7 @@ y <- breast_dat[1] #response
 ```{r}
 #soft threshold
 sfxn <- function(beta, lambda) {
-  if ((abs(beta) - lambda) > 0) {
+  if (abs(beta) > lambda) {
     return(sign(beta) * (abs(beta) - lambda))
   }
   else {
@@ -76,17 +78,17 @@ x.matrix <- as.matrix(x)
 resls <- list()
 lambdamax <- function(matrix, vector) {
   for (i in 1:ncol(matrix)) {
-    res <- matrix[, i] * y
-    maxres <- max(res)
-    resls[[i]] <- maxres
+    res <- sum(matrix[, i] * y)
+    resls[[i]] <- res
   }
   return(resls)
 }
 
 lambda_ls <- lambdamax(x.matrix, y) 
 lambda_df <- as.data.frame(do.call(rbind, lambda_ls))
-maxlambda <- max(lambda_df$V1) / nrow(y)
+maxlambda <- max(lambda_ls) / nrow(y)
 maxlambda
+
 ```
 
 
@@ -116,16 +118,16 @@ pathwise_sol
 ## cross-validation
 
 ```{r}
-set.seed(8160)
-trnctl = trainControl(method = "cv", number = 5)
-
-## lasso
-lasso_fit = train(x, y, method = "glmnet",
-               tuneGrid = expand.grid(alpha = 1, #lasso
-                                      lambda = exp(seq(4, -4, length = 50))),
-               trControl = trnctl)
-
-lasso_fit$bestTune
+#set.seed(8160)
+#trnctl = trainControl(method = "cv", number = 5)
+#
+### lasso
+#lasso_fit = train(x, y, method = "glmnet",
+#               tuneGrid = expand.grid(alpha = 1, #lasso
+#                                      lambda = exp(seq(4, -4, length = 50))),
+#               trControl = trnctl)
+#
+#lasso_fit$bestTune
 
 ```
 
@@ -139,13 +141,11 @@ cv = function(data, lambda) {
   n <- nrow(data)
   data <- data[sample(n), ] #shuffle the data
   folds <- cut(seq(1, nrow(data)), breaks = 5, labels = FALSE) #Create 5 equally size folds
-  mse <- data.frame() #a data frame storing mse results
-  mse_lambda <- vector()
+  res <- lambda 
   #se <- vector() #a vectro storing test errors
   
     #Perform 5 fold cross validation
-  for(i in 1:5){
-    betastart <- rep(0, 31)
+  for (i in 1:5){
     #partition the data into train and test data
     testRows <- which(folds == i, arr.ind = TRUE)
     data_test <- data[testRows, ]
@@ -153,28 +153,44 @@ cv = function(data, lambda) {
     x_train <- data_train[2:31]
     y_train <- data_train[1]
     x_test <- data_test[2:31]
+    #standardized test data
     x_test_stan <- cbind(rep(1, nrow(x_test)), scale(x_test))
-    y_test <- data_test[1]
+    y_test <- data_test %>% mutate(diagnosis = factor(diagnosis))
+    y_test <- y_test$diagnosis
     #Use the test and train data partitions to perform lasso
     path_sol <- pathwise(x = x_train,
                          y = y_train,
                          lambda = lambda)
-    error <- vector()
+    print(path_sol)
+    auc <- vector()
     for (j in 1:length(lambda)) {
-      curbeta <- path_sol[j, 2:32]
+      curbeta <- as.numeric(path_sol[j, 2:32])
       theta <- x_test_stan %*% curbeta
       p <- exp(theta) / (1 + exp(theta)) 
-      error[j] <- (p - y_test)^2
+      auc[j] <- auc(y_test, p)
     }
-    mse[i] <- error
+    print(auc)
+    res <- cbind(res, auc)
+    print(res)
   }
+  return(res)
     #se[j] <- sqrt(var(error)/5)
-  mse_lambda <- rowMeans(mse)
-  return(cbind(lambda, mse_lambda))
+  #cv.auc.lambda <- rowMeans(mse)
+  #return(cv.auc.lambda)
 }
 
-cv_test = cv(data = breast_dat, lambda = seq(5, 0, length = 20))
+cv_test = cv(data = breast_dat, lambda = seq(5, 0, length = 5))
 ```
+
+```{r}
+#set.seed(2022)
+#x.matrix <- as.matrix(x)
+#y.matrix <- as.matrix(y)
+#cv.lasso1 <- cv.glmnet(x.matrix, y.matrix, alpha = 1, family = "binomial", nfolds = 5)
+#plot(cv.lasso1)
+#lambda1 <- cv.lasso1$lambda.min
+```
+
 
 
 ```{r}
@@ -183,9 +199,15 @@ cv_test = cv(data = breast_dat, lambda = seq(5, 0, length = 20))
 #testIndexes = which(folds == 1, arr.ind = TRUE)
 #x_train <- breast_dat[-testIndexes, 2:31]
 #y_train <- breast_dat[-testIndexes, 1]
+#x_test <- breast_dat[testIndexes, 2:31]
+#x_test_stan <- cbind(rep(1, nrow(x_test)), scale(x_test))
+#y_test <- breast_dat[testIndexes, ] %>% mutate(diagnosis = factor(diagnosis))
+#y_test <- y_test$diagnosis
 #aa <- coordwise_lasso(lambda = 0.5, x_train, y_train, betastart = rep(0, 31))
-#nrow(aa)
-#as.matrix
+#a <- as.numeric(aa[nrow(aa), 3:33])
+#theta1 <- x_test_stan %*% a
+#p1 <- exp(theta1) / (1+exp(theta1))
+#auc(y_test, p1)
 
 
 ```
