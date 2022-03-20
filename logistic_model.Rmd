@@ -63,15 +63,15 @@ corr = stand_df %>%
 
 ggcorrplot(corr, type = "upper")
 
-X = stand_df %>% 
-  select(radius_mean, texture_mean, smoothness_mean, compactness_mean,
-         symmetry_mean, fractal_dimension_mean, radius_se, texture_se,
-         smoothness_se, concavity_se, symmetry_se)
+#X = stand_df %>% 
+  #select(radius_mean, texture_mean, smoothness_mean, compactness_mean,
+         #symmetry_mean, fractal_dimension_mean, radius_se, texture_se,
+         #smoothness_se, concavity_se, symmetry_se)
 
-corr_new = X %>% cor()
-corr_new
+#corr_new = X %>% cor()
+#corr_new
 
-ggcorrplot(corr_new, type = "upper", lab = TRUE)
+#ggcorrplot(corr_new, type = "upper", lab = TRUE)
 ```
 
 ```{r}

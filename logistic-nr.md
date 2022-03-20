@@ -1,19 +1,11 @@
----
-title: "logistic-nr"
-author: "Shengzhi Luo"
-date: "3/20/2022"
-output: github_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-library(tidyverse)
-library(caret)
-library(pROC)
-```
+logistic-nr
+================
+Shengzhi Luo
+3/20/2022
 
 ## data import
-```{r}
+
+``` r
 breast_dat = read_csv("breast-cancer.csv") %>% 
   select(-1, -33) %>% 
   janitor::clean_names() %>% 
@@ -28,50 +20,57 @@ breast_ls = list(x = x, y = breast_ls$diagnosis)
 #y <- breast_dat[1] #response
 ```
 
-## 1. Logisic Model 
+## 1. Logisic Model
 
-Let $y$ be the vector $n$ response random variable, $X$ denote the $n\times p$ design matrix(let$X_{i}$ denote the $i$th row) and $\beta$ denote the $p\times 1$ coefficient.
-The logistic regression model can be defined as
+Let *y* be the vector *n* response random variable, *X* denote the
+*n* × *p* design matrix(let*X*<sub>*i*</sub> denote the *i*th row) and
+*β* denote the *p* × 1 coefficient. The logistic regression model can be
+defined as
 
 $$
-\log(\frac{\pi}{1-\pi})=X\beta
+\\log(\\frac{\\pi}{1-\\pi})=X\\beta
 $$
 
-where the link function is $\log(\frac{\pi}{1-\pi})$.
+where the link function is $\\log(\\frac{\\pi}{1-\\pi})$.
 
 The likelihood of logistic regression is:
-$$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
-where $y_i \sim bin(1, \pi_i)$, 
-$$y_i =
-    \begin{cases}
-      1, & malignant\ tissue \\
-      0, & benign\ tissue
-    \end{cases}$$ 
-Consequently, the log-likelihood function is 
+$$L(\\beta; X, y) = \\prod\_{i=1}^n \\{(\\frac{\\exp(X\_{i}\\beta)}{1+\\exp(X\_{i}\\beta)})^{y\_i}(\\frac{1}{1+\\exp(X\_{i}\\beta)})^{1-y\_i}\\}$$
+where *y*<sub>*i*</sub> ∼ *b**i**n*(1, *π*<sub>*i*</sub>),
+$$y\_i =
+    \\begin{cases}
+      1, & malignant\\ tissue \\\\
+      0, & benign\\ tissue
+    \\end{cases}$$
+Consequently, the log-likelihood function is
 
 $$
-l(\beta)=\sum_{i=1}^{n}\left\{y_{i}\left(X_{i} \beta\right)-\log \left(1+\exp \left(X_{i} \beta\right)\right)\right\}
+l(\\beta)=\\sum\_{i=1}^{n}\\left\\{y\_{i}\\left(X\_{i} \\beta\\right)-\\log \\left(1+\\exp \\left(X\_{i} \\beta\\right)\\right)\\right\\}
 $$
-Maximizing the likelihood is equivalent to maximizing the log likelihood:
+Maximizing the likelihood is equivalent to maximizing the log
+likelihood:
 $$
-\begin{aligned}
-l(\beta) 
-& = \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}\\
-& = <X\beta, Y> - \sum_{i=1}^n\log(1+\exp(X_{i}\beta))
-\end{aligned}
+\\begin{aligned}
+l(\\beta) 
+& = \\sum\_{i=1}^n \\{y\_i(X\_{i}\\beta)-\\log(1+\\exp(X\_{i}\\beta))\\}\\\\
+& = &lt;X\\beta, Y&gt; - \\sum\_{i=1}^n\\log(1+\\exp(X\_{i}\\beta))
+\\end{aligned}
 $$
 
-Let $p$, a vector of $n$ denote $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$. 
-The gradient of this function is:
-$$\nabla l(\beta) = X^T(y-p)$$
+Let *p*, a vector of *n* denote
+$p=\\frac{\\exp(X\\beta)}{1+\\exp(X\\beta)}$. The gradient of this
+function is:
+∇*l*(*β*) = *X*<sup>*T*</sup>(*y* − *p*)
 
 The Hessian is given by:
-$$\nabla^2 l(\beta) = -X^T W X$$ where $W = diag(p_1(1-p_1),p_2(1-p_2),\cdots,p_n(1-p_n))$
+∇<sup>2</sup>*l*(*β*) =  − *X*<sup>*T*</sup>*W**X*
+where
+*W* = *d**i**a**g*(*p*<sub>1</sub>(1 − *p*<sub>1</sub>), *p*<sub>2</sub>(1 − *p*<sub>2</sub>), ⋯, *p*<sub>*n*</sub>(1 − *p*<sub>*n*</sub>))
 Hessian matrix is negative definite, well behaved.
 
-With p = 30 predictors, we obtain a 31 $\times$ 1 gradient vector and 31 $\times$ 31 Hessian matrix
+With p = 30 predictors, we obtain a 31 × 1 gradient vector and 31 × 31
+Hessian matrix
 
-```{r loglikelyhood}
+``` r
 logisticmodel <- function(dat, betavec){
   x<- dat$x
   xm <- cbind(rep(1, nrow(x)), scale(x))
@@ -105,7 +104,7 @@ logisticmodel <- function(dat, betavec){
 
 ## 2. Newton-Raphson algorithm
 
-```{r}
+``` r
 NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter = 20000) {
   i <- 0
   cur <- start
@@ -143,5 +142,3 @@ NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter = 20000) {
   return(res)
 }
 ```
-
-
