@@ -2,7 +2,7 @@
 title: "Project 2: Breast Cancer Diagnosis"
 author: "Xinran Sun"
 date: "3/17/2022"
-output: github_document
+output: pdf_document
 ---
 # Objectives
 
@@ -41,7 +41,16 @@ For likelihood function is:
 Maximizing the likelihood is equivalent to maximizing the log likelihood:
 \[f(\beta_0,\beta) = \sum_{i=1}^n [y_i(\beta_0+\beta X_i)-\log(1+e^{\beta_0+\beta X_i})].\]
 The gradient of this function is:
-\[\nabla f(\beta_0,\beta)=\]
+\[\nabla f(\beta_0,\beta)= \begin{pmatrix}
+\sum_{i=1}^n y_i-p_i\\
+\sum_{i=1}^n X_1(y_i-p_i)\\
+...\\
+\sum_{i=1}^n X_n(y_i-p_i)
+\end{pmatrix}\]
+where $p_i = P(y_i=1|X_i)$ as mentioned in previous probability function.
+
+The Hessian is given by
+\[\nabla^2 f(\beta_0,\beta)\]
 
 # Results
 
