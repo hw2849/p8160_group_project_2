@@ -52,6 +52,13 @@ $$f(\\beta\_0,\\beta) = \\sum\_{i=1}^n \[y\_i(\\beta\_0+\\beta X\_i)-\\log(1+e^{
 The gradient of this function is:
 ∇*f*(*β*<sub>0</sub>, *β*)=
 
+### Newton-Raphson Algorithm
+
+### Path-wise Coordinate-wise Optimization Algorithm
+
+To obtain a path of solutions with a descending sequence of λ’s in a
+logistic-LASSO model, we can implement a path-wise coordinate-wise
+optimization algorithm which contains the following steps:
 # Results
 
 # Conclusions

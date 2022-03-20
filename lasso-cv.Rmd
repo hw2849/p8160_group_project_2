@@ -18,7 +18,20 @@ library(glmnet)
 breast_dat = read_csv("breast-cancer.csv") %>% 
   select(-1, -33) %>% 
   janitor::clean_names() %>% 
-  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0))
+  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0)) %>% 
+  add_row(diagnosis = 0, radius_mean = 7.76, texture_mean = 24.54,
+          perimeter_mean = 47.92, area_mean = 181, smoothness_mean = 0.05263,
+          compactness_mean = 0.04362, concavity_mean = 0, 
+          concave_points_mean = 0, symmetry_mean = 0.1587,
+          fractal_dimension_mean = 0.05884, radius_se = 0.3857, 
+          texture_se = 1.428, perimeter_se = 2.548, area_se = 19.15,
+          smoothness_se = 0.007189, compactness_se = 0.00466, concavity_se = 0,
+          concave_points_se = 0, symmetry_se = 0.02676, 
+          fractal_dimension_se = 0.002783, radius_worst = 9.456, 
+          texture_worst = 30.37, perimeter_worst = 59.16, area_worst = 268.6,
+          smoothness_worst = 0.08996, compactness_worst = 0.06444,
+          concavity_worst = 0, concave_points_worst = 0, 
+          symmetry_worst = 0.2871, fractal_dimension_worst = 0.07039) 
 
 
 head(breast_dat, 5)
@@ -86,9 +99,8 @@ lambdamax <- function(matrix, vector) {
 
 lambda_ls <- lambdamax(x.matrix, y) 
 lambda_df <- as.data.frame(do.call(rbind, lambda_ls))
-maxlambda <- max(lambda_ls) / nrow(y)
+maxlambda <- max(lambda_df) / nrow(y)
 maxlambda
-
 ```
 
 
@@ -139,16 +151,13 @@ set.seed(8160)
 cv = function(data, lambda) {
   n <- nrow(data)
   data <- data[sample(n), ] #shuffle the data
-<<<<<<< HEAD
   folds <- cut(seq(1, nrow(data)), breaks = 5, labels = FALSE) #Create 5 equal size folds
   mse <- data.frame() #a data frame storing mse results
   mse_lambda <- vector()
   #se <- vector() #a vector storing test errors
-=======
   folds <- cut(seq(1, nrow(data)), breaks = 5, labels = FALSE) #Create 5 equally size folds
   res <- lambda 
   #se <- vector() #a vectro storing test errors
->>>>>>> 49daf33937ea5a03c050c3d41277725d3105fd5b
   
     #Perform 5 fold cross validation
   for (i in 1:5){
