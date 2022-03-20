@@ -1,0 +1,132 @@
+---
+title: "Project 2: Breast Cancer Diagnosis"
+author: "Xinran Sun"
+date: "3/17/2022"
+output: html_document
+---
+# Objectives
+
+A mammogram is an X-ray image of breast tissue. It can help save lives because it is easier to treat breast cancer in its early stages before the cancer is big enough to detect or cause symptoms. However, a wrong diagnosis can have a negative impact on patients. For example, if there is a false-positive test result, the doctor sees something that looks like cancer but is not. This could result in overtreatment that causes unnecessary side effects on patients. On the other hand, false-negative test result occurs when a doctor misses cancer tissues, which may delay the treatment. Therefore, building a model that gives an accurate classification of the tissue images is necessary to give proper treatment. In our study, we collected 569 images from both malignant and benign cancer tissues. Our goal is to build a predictive model to facilitate cancer diagnosis.
+
+# Dataset
+
+Our data set consistes of 569 rows, with 357 benign and 212 malignant. We denote 0 for benign and 1 for malignant. We also have 30 columns representing the features of the tissue images. They include the mean, standard deviation, and the largest values of the distributions of the following 10 features computed for the cell nuclei:
+\begin{itemize}
+\item radius (mean of distances from center to points on the perimeter)
+\item texture (standard deviation of gray-scale values)
+\item perimeter
+\item area
+\item smoothness (local variation in radius lengths)
+\item compactness ($perimeter^2/area$ - 1.0)
+\item concavity (severity of concave portions of the contour)
+\item concave points (number of concave portions of the contour)
+\item symmetry
+\item fractal dimension ("coastline approximation" - 1)
+\end{itemize}
+
+# Methods
+
+### Variables Selection
+
+Among the 30 explanatory variables that we have, not all of them are necessary for the prediction model. Therefore, we dropped the columns that have high correlation with other columns. The 11 variables we left in the end have correlations less than 0.7 with each other.
+
+### Logistic Model
+
+Let \textit{y} be the vector with 569 binary response variable, \textit{X} be the $569 \times 11$ matrix with 11 numerical explanatory variables, and \textit{$\beta$} be the vector with 11 corresponding coefficients. We also have \textit{$\beta_0$} as the intercepts.
+
+For our logistic model, the probability of \textit{i}th row be a malignant tissue is given by:
+\[P(y_i=1|X_i) = \frac{e^{\beta_0+\beta X_i}}{1+e^{\beta_0+\beta X_i}}.\]
+For likelihood function is:
+\[L(\beta_0,\beta) = \prod_{i=1}^n [(\frac{e^{\beta_0+\beta X_i}}{1+e^{\beta_0+\beta X_i}})^{y_i}(\frac{1}{1+e^{\beta_0+\beta X_i}})^{1-y_i}].\]
+Maximizing the likelihood is equivalent to maximizing the log likelihood:
+\[f(\beta_0,\beta) = \sum_{i=1}^n [y_i(\beta_0+\beta X_i)-\log(1+e^{\beta_0+\beta X_i})].\]
+The gradient of this function is:
+\[\nabla f(\beta_0,\beta)=\]
+
+# Results
+
+# Conclusions
+
+
+# Appendix
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(caret)
+library(ggcorrplot)
+```
+
+### Data preparation
+```{r}
+#load the data
+breast_dat = read_csv("breast-cancer.csv") %>% 
+  janitor::clean_names() %>% 
+  select(-33) %>% #drop NA column
+  add_row(id = 92751, diagnosis = "B", radius_mean = 7.76, texture_mean = 24.54,
+          perimeter_mean = 47.92, area_mean = 181, smoothness_mean = 0.05263,
+          compactness_mean = 0.04362, concavity_mean = 0, 
+          concave_points_mean = 0, symmetry_mean = 0.1587,
+          fractal_dimension_mean = 0.05884, radius_se = 0.3857, 
+          texture_se = 1.428, perimeter_se = 2.548, area_se = 19.15,
+          smoothness_se = 0.007189, compactness_se = 0.00466, concavity_se = 0,
+          concave_points_se = 0, symmetry_se = 0.02676, 
+          fractal_dimension_se = 0.002783, radius_worst = 9.456, 
+          texture_worst = 30.37, perimeter_worst = 59.16, area_worst = 268.6,
+          smoothness_worst = 0.08996, compactness_worst = 0.06444,
+          concavity_worst = 0, concave_points_worst = 0, 
+          symmetry_worst = 0.2871, fractal_dimension_worst = 0.07039) 
+  #add missing row
+
+
+head(breast_dat, 5)
+
+r = dim(breast_dat)[1] #row number
+c = dim(breast_dat)[2] #column number
+
+var_names = names(breast_dat)[-c(1,2)] #variable names
+  
+standardize = function(col) {
+  mean = mean(col)
+  sd = sd(col)
+  return((col - mean)/sd)
+}
+
+stand_df = breast_dat %>% 
+  dplyr::select(radius_mean:fractal_dimension_worst) %>% 
+  map_df(.x = ., standardize) #standardize
+
+X = stand_df #predictors
+y = as.vector(ifelse(breast_dat[,2] == "M", 1, 0))#response
+```
+
+### Check collinearity
+
+```{r}
+corr = stand_df %>% 
+  cor()
+corr
+
+ggcorrplot(corr, type = "upper")
+
+#if two variables have correlation > 0.7, drop one of them
+X = stand_df %>% 
+  select(radius_mean, texture_mean, smoothness_mean, compactness_mean,
+         symmetry_mean, fractal_dimension_mean, radius_se, texture_se,
+         smoothness_se, concavity_se, symmetry_se)
+
+#check the correlation after variable selection
+corr_new = X %>% cor()
+
+ggcorrplot(corr_new, type = "upper", lab = TRUE)
+```
+
+### Logistic model
+
+```{r}
+logdata = cbind.data.frame(y, X)
+log_model = glm(y ~ ., family = binomial(link = "logit"),data = logdata)
+summary(log_model)
+```
+
+
