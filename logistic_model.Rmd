@@ -80,4 +80,63 @@ log_model = glm(y ~ ., family = binomial(link = "logit"),data = logdata)
 summary(log_model)
 ```
 
+## Newton-Raphson algorithm
+
+```{r}
+## logistic stuff 
+
+logisticstuff = function(dat, betavec){
+  
+  beta0 = betavec[1]
+  betavec = betavec[2:length(betavec)]
+  
+  u = beta0 + betavec * dat$x
+  expu = exp(u)
+  loglik = sum(dat$y * (beta0 + betavec * dat$x) - log(1 + exp(beta0 + betavec * dat$x)))
+  
+  p = vector()
+  p = exp(beta0 + betavec * dat$x) / (1 + exp(beta0 + betavec * dat$x))
+  
+  grad = t(dat$x) %*% sum(dat$y - p) # gradiant
+  
+  w = p %*% (1 - p)
+  hess = -dat$x %*% t(dat$x) %*% w # hessian matrix
+  
+  return(list(loglik = loglik, grad = grad, hess = hess))
+}
+
+
+## NewtonRaphson
+newtonraphson = function(dat, func, start, tol = 10^-10, maxiter = 200){
+  i = 0
+  curbeta = start
+  stuff = func(dat, curbeta)
+  res = c(0, stuff$loglik, curbeta)
+  prevloglik = -Inf
+  while (i < maxiter && abs(stuff$loglik - prevloglik) > tol) {
+    i = i + 1
+    prevloglik = stuff$loglik
+    prev = curbeta
+    curbeta = prev - solve(stuff$hess) %*% stuff$grad
+    stuff = func(dat, curbeta)
+    
+    #redirection
+    while (is.negative.definite(stuff$hess) == FALSE) {
+      stuff$hess = stuff$hess - diag(2)
+    }
+    
+    k = 1 #halfstep
+    while (prevloglik > stuff$loglik) {
+          halfstep = 1/(2^k)
+          curbeta = prev - halfstep * solve(stuff$hess) %*% stuff$grad
+          k = k + 1
+    }
+    
+    res = rbind(res, c(i, stuff$loglik, cur))
+  }
+  return(res)
+}
+
+
+```
 
