@@ -2,7 +2,7 @@
 title: "Project 2: Breast Cancer Diagnosis"
 author: "Xinran Sun"
 date: "3/17/2022"
-output: github_document
+output: pdf_document
 ---
 # Objectives
 
@@ -32,7 +32,7 @@ Among the 30 explanatory variables that we have, not all of them are necessary f
 
 ### Logistic Model
 
-Let \textit{y} be the vector with 569 binary response variable, \textit{X} be the $569 \times 11$ matrix with 11 numerical explanatory variables, and \textit{$\beta$} be the vector with 11 corresponding coefficients. We also have \textit{$\beta_0$} as the intercepts.
+Let \textit{y} be the vector with 569 binary response variable, \textit{X} be the $569 \times 30$ matrix with 30 numerical explanatory variables, and \textit{$\beta$} be the vector with 30 corresponding coefficients. We also have \textit{$\beta_0$} as the intercepts.
 
 For our logistic model, the probability of \textit{i}th row be a malignant tissue is given by:
 \[P(y_i=1|X_i) = \frac{e^{\beta_0+\beta X_i}}{1+e^{\beta_0+\beta X_i}}.\]
@@ -41,7 +41,17 @@ For likelihood function is:
 Maximizing the likelihood is equivalent to maximizing the log likelihood:
 \[f(\beta_0,\beta) = \sum_{i=1}^n [y_i(\beta_0+\beta X_i)-\log(1+e^{\beta_0+\beta X_i})].\]
 The gradient of this function is:
-\[\nabla f(\beta_0,\beta)=\]
+\[\nabla f(\beta_0,\beta)= \begin{pmatrix}
+\sum_{i=1}^n y_i-p_i\\
+\sum_{i=1}^n X_1(y_i-p_i)\\
+...\\
+\sum_{i=1}^n X_n(y_i-p_i)
+\end{pmatrix} = X^T(y_i-p_i)\]
+where $p_i = P(y_i=1|X_i)$ as mentioned in previous probability function.
+
+The Hessian is given by
+\[\nabla^2 f(\beta_0,\beta) = -XX^TW\]
+where $W = p_i(1-p_i)$.
 
 # Results
 
@@ -57,7 +67,7 @@ library(caret)
 library(ggcorrplot)
 ```
 
-### Data preparation
+## data import and data clean
 ```{r}
 #load the data
 breast_dat = read_csv("breast-cancer.csv") %>% 
@@ -100,33 +110,28 @@ X = stand_df #predictors
 y = as.vector(ifelse(breast_dat[,2] == "M", 1, 0))#response
 ```
 
-### Check collinearity
+## check collinearity
 
 ```{r}
 corr = stand_df %>% 
   cor()
-corr
 
 ggcorrplot(corr, type = "upper")
 
-#if two variables have correlation > 0.7, drop one of them
-X = stand_df %>% 
-  select(radius_mean, texture_mean, smoothness_mean, compactness_mean,
-         symmetry_mean, fractal_dimension_mean, radius_se, texture_se,
-         smoothness_se, concavity_se, symmetry_se)
+#X = stand_df %>% 
+  #select(radius_mean, texture_mean, smoothness_mean, compactness_mean,
+         #symmetry_mean, fractal_dimension_mean, radius_se, texture_se,
+         #smoothness_se, concavity_se, symmetry_se)
 
-#check the correlation after variable selection
-corr_new = X %>% cor()
+#corr_new = X %>% cor()
+#corr_new
 
-ggcorrplot(corr_new, type = "upper", lab = TRUE)
+#ggcorrplot(corr_new, type = "upper", lab = TRUE)
 ```
-
-### Logistic model
 
 ```{r}
 logdata = cbind.data.frame(y, X)
 log_model = glm(y ~ ., family = binomial(link = "logit"),data = logdata)
 summary(log_model)
 ```
-
 

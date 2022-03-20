@@ -140,3 +140,4 @@ newtonraphson = function(dat, func, start, tol = 10^-10, maxiter = 200){
 
 ```
 
+
