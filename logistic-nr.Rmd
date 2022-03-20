@@ -1,0 +1,154 @@
+---
+title: "logistic-nr"
+author: "Shengzhi Luo"
+date: "3/20/2022"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(caret)
+library(pROC)
+```
+
+## data import
+```{r}
+breast_dat = read_csv("breast-cancer.csv") %>% 
+  select(-1, -33) %>% 
+  janitor::clean_names() %>% 
+  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0))
+
+breast_ls = list(x = breast_dat[,2:31], y = breast_dat$diagnosis)
+x = sapply(breast_ls$x, function(x) as.numeric(unlist(x)))
+breast_ls = list(x = x, y = breast_ls$diagnosis)
+
+#head(breast_dat, 5)
+#x <- breast_dat[2:31] #predictors
+#y <- breast_dat[1] #response
+```
+
+## 1. Logisic Model 
+
+Let $y$ be the vector $n$ response random variable, $X$ denote the $n\times p$ design matrix(let$X_{i}$ denote the $i$th row) and $\beta$ denote the $p\times 1$ coefficient.
+The logistic regression model can be defined as
+
+$$
+\log(\frac{\pi}{1-\pi})=X\beta
+$$
+
+where the link function is $\log(\frac{\pi}{1-\pi})$.
+
+The likelihood of logistic regression is:
+$$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
+where $y_i \sim bin(1, \pi_i)$, 
+$$y_i =
+    \begin{cases}
+      1, & malignant\ tissue \\
+      0, & benign\ tissue
+    \end{cases}$$ 
+Consequently, the log-likelihood function is 
+
+$$
+l(\beta)=\sum_{i=1}^{n}\left\{y_{i}\left(X_{i} \beta\right)-\log \left(1+\exp \left(X_{i} \beta\right)\right)\right\}
+$$
+Maximizing the likelihood is equivalent to maximizing the log likelihood:
+$$
+\begin{aligned}
+l(\beta) 
+& = \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}\\
+& = <X\beta, Y> - \sum_{i=1}^n\log(1+\exp(X_{i}\beta))
+\end{aligned}
+$$
+
+Let $p$, a vector of $n$ denote $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$. 
+The gradient of this function is:
+$$\nabla l(\beta) = X^T(y-p)$$
+
+The Hessian is given by:
+$$\nabla^2 l(\beta) = -X^T W X$$ where $W = diag(p_1(1-p_1),p_2(1-p_2),\cdots,p_n(1-p_n))$
+Hessian matrix is negative definite, well behaved.
+
+With p = 30 predictors, we obtain a 31 $\times$ 1 gradient vector and 31 $\times$ 31 Hessian matrix
+
+```{r loglikelyhood}
+logisticmodel <- function(dat, betavec){
+  x<- dat$x
+  xm <- cbind(rep(1, nrow(x)), scale(x))
+  u <- xm %*% betavec
+  expu <- exp(u)
+  j <- 1
+  loglik_temp <- matrix()
+  p <- matrix()
+  
+  for(j in 1:nrow(xm)){
+    loglik_temp[j] <- ifelse(u[j] > 10, 
+                             sum(dat$y[j] * u[j]  - u[j]), 
+                             sum(dat$y[j] * u[j]  - log(1 + expu[j])))
+    p[j] <- ifelse(u[j] > 10, 1, expu[j] / (1 + expu[j]))
+  j <- j+1
+  }
+ 
+  loglik <- sum(loglik_temp)
+  grad <- matrix(colSums(xm * as.vector(dat$y - p))) 
+  Hess <- 0
+  i = 1 
+  for (i in 1:nrow(xm)) {
+    tt <- xm[i,]
+    dd <- t(tt)
+    Hess <- Hess - tt %*% dd * p[i] * (1 - p[i])
+    i <- i + 1
+  }
+  return(list(loglik = loglik, grad = grad, Hess = Hess))
+}
+```
+
+## 2. Newton-Raphson algorithm
+
+```{r}
+NewtonRaphson <- function(dat, func, start, tol=1e-10, maxiter = 20000) {
+  i <- 0
+  cur <- start
+  stuff <- func(dat, cur)
+  res <- c(0, stuff$loglik, cur)
+  prevloglik <- -Inf      
+  while(i < maxiter && abs(stuff$loglik - prevloglik) > tol) {
+    i <- i + 1
+    prevloglik <- stuff$loglik
+    prev <- cur
+    cur <- prev - ginv(stuff$Hess, 2.34406e-18) %*% stuff$grad
+    prevstuff <- stuff
+    stuff <- func(dat, cur) 
+    gamma <- 0.01
+    
+    while(max(eigen(stuff$Hess)$value)>0){
+      stuff$Hess = stuff$Hess - diag(31) * gamma
+      gamma <- gamma + 0.01
+    }
+    
+    if (stuff$loglik > prevloglik)
+    {
+        res <- rbind(res, c(i, stuff$loglik, cur))
+    } else 
+    {
+      lambda <- 1
+      while (stuff$loglik < prevloglik) {
+        lambda <- lambda / 2 # step-halving
+        cur <- prev - lambda * ginv(prevstuff$Hess, 2.34406e-18) %*% prevstuff$grad
+        stuff <- func(dat, cur)        # log-lik, gradient, Hessian
+      }
+        res <- rbind(res, c(i, stuff$loglik, cur))# Add current values to results matrix
+    }
+  }
+  return(res)
+}
+```
+
+```{r}
+NewRes <- NewtonRaphson(dat = breast_dat, func = logisticmodel, start = rep(0, 31))
+NewRes
+res1 = NewtonRaphson(dat = breast_dat, func = logisticmodel, start = rep(1, 31))
+glm(diagnosis ~ ., family = binomial("logit"), data  = cancer[, -1], start = rep(0, 31))
+check <- tail(NewRes)
+check
+```
