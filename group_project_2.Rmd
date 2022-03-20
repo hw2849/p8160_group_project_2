@@ -129,8 +129,7 @@ lasso_fit$bestTune
 
 ```
 
-To perform a 5-fold cross validation, we first shuffle the original dataset randomly, and then split the dataset into (k=5) groups. Then for each group, take one group as a test data set and the rest groups as a training data set. Fitting a model on the training set and evaluate it on the test set. (https://machinelearningmastery.com/k-fold-cross-validation/)
-k-fold cv code reference: (https://stats.stackexchange.com/questions/61090/how-to-split-a-data-set-to-do-10-fold-cross-validation)
+
 
 ```{r cross validation}
 set.seed(8160)
@@ -138,10 +137,10 @@ set.seed(8160)
 cv = function(data, lambda) {
   n <- nrow(data)
   data <- data[sample(n), ] #shuffle the data
-  folds <- cut(seq(1, nrow(data)), breaks = 5, labels = FALSE) #Create 5 equally size folds
+  folds <- cut(seq(1, nrow(data)), breaks = 5, labels = FALSE) #Create 5 equal size folds
   mse <- data.frame() #a data frame storing mse results
   mse_lambda <- vector()
-  #se <- vector() #a vectro storing test errors
+  #se <- vector() #a vector storing test errors
   
     #Perform 5 fold cross validation
   for(i in 1:5){
