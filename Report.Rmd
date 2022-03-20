@@ -2,7 +2,7 @@
 title: "Project 2: Breast Cancer Diagnosis"
 author: "Xinran Sun"
 date: "3/17/2022"
-output: html_document
+output: pdf_document
 ---
 # Objectives
 
