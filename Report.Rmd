@@ -3,6 +3,7 @@ title: "Project 2: Breast Cancer Diagnosis"
 author: "Xinran Sun"
 date: "3/17/2022"
 output: pdf_document
+- \usepackage{amsmath}
 ---
 # Objectives
 
@@ -56,18 +57,12 @@ where $W = p_i(1-p_i)$.
 ### Newton-Raphson Algorithm
 
 ### Path-wise Coordinate-wise Optimization Algorithm
-To obtain a path of solutions with a descending sequence of λ’s in a logistic-LASSO model, we can implement a path-wise coordinate-wise optimization algorithm which contains the following steps:
+To obtain a path of solutions with a descending sequence of $\lambda$’s in a logistic-LASSO model, we can implement a path-wise coordinate-wise optimization algorithm which contains the following steps:
 \begin{itemize}
-\item Step 1: Find the smallest value lambda for which all the estimated beta are 0, defined as lambda_max.
-\item texture (standard deviation of gray-scale values)
-\item perimeter
-\item area
-\item smoothness (local variation in radius lengths)
-\item compactness ($perimeter^2/area$ - 1.0)
-\item concavity (severity of concave portions of the contour)
-\item concave points (number of concave portions of the contour)
-\item symmetry
-\item fractal dimension ("coastline approximation" - 1)
+\item Step 1: Find the smallest value $\lambda$ for which all the estimated $\beta$ are 0, defined as $\lambda_{max}$.
+\item Step 2: Define a fine sequence $\lambda_{max} \ge \lambda_1 \ge ... \lambda_{min} \ge 0$.
+\item Step 3: Define a quadratic approximated objective function \[L(\beta_0, \textbf{$\beta$}, \lambda)\] for $\lambda_k$ using the estimated parameter at $\lambda_{k-1}$ ($\lambda_{k-1} > \lambda_k$).
+\item Step 4: Run coordinate descendent algorithm to find the optimization defined in Step 3.
 \end{itemize}
 
 

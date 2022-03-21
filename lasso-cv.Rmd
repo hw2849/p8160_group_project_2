@@ -152,10 +152,9 @@ cv = function(data, lambda) {
   n <- nrow(data)
   data <- data[sample(n), ] #shuffle the data
   folds <- cut(seq(1, nrow(data)), breaks = 5, labels = FALSE) #Create 5 equal size folds
-  mse <- data.frame() #a data frame storing mse results
-  mse_lambda <- vector()
+ # mse <- data.frame() #a data frame storing mse results
+  #mse_lambda <- vector()
   #se <- vector() #a vector storing test errors
-  folds <- cut(seq(1, nrow(data)), breaks = 5, labels = FALSE) #Create 5 equally size folds
   res <- lambda 
   #se <- vector() #a vectro storing test errors
   
@@ -194,7 +193,7 @@ cv = function(data, lambda) {
   #return(cv.auc.lambda)
 }
 
-cv_test = cv(data = breast_dat, lambda = seq(5, 0, length = 5))
+cv_test = cv(data = breast_dat, lambda = seq(8, 0, length = 30))
 ```
 
 ```{r}
