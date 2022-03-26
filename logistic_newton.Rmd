@@ -1,0 +1,248 @@
+---
+title: "logistic_nr"
+author: "Shengzhi Luo"
+date: "21/03/2022"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(caret)
+library(glmnet)
+library(matlib)
+library(glmnet)
+library(ROCR)
+```
+
+## data import
+```{r}
+breast_dat = read_csv("breast-cancer.csv") %>% 
+  select(-1, -33) %>% 
+  janitor::clean_names() %>% 
+  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0)) %>% 
+  na.omit()
+#head(breast_dat, 5)
+#x <- breast_dat[2:31] #predictors
+#y <- breast_dat[1] #response
+```
+
+## 1. Logisic Model 
+
+Let $y$ be the vector $n$ response random variable, $X$ denote the $n\times p$ design matrix(let$X_{i}$ denote the $i$th row) and $\beta$ denote the $p\times 1$ coefficient.
+The logistic regression model can be defined as
+
+$$
+\log(\frac{\pi}{1-\pi})=X\beta
+$$
+
+where the link function is $\log(\frac{\pi}{1-\pi})$.
+
+The likelihood of logistic regression is:
+$$L(\beta; X, y) = \prod_{i=1}^n \{(\frac{\exp(X_{i}\beta)}{1+\exp(X_{i}\beta)})^{y_i}(\frac{1}{1+\exp(X_{i}\beta)})^{1-y_i}\}$$
+where $y_i \sim bin(1, \pi_i)$, 
+$$y_i =
+    \begin{cases}
+      1, & malignant\ tissue \\
+      0, & benign\ tissue
+    \end{cases}$$ 
+Consequently, the log-likelihood function is 
+
+$$
+l(\beta)=\sum_{i=1}^{n}\left\{y_{i}\left(X_{i} \beta\right)-\log \left(1+\exp \left(X_{i} \beta\right)\right)\right\}
+$$
+Maximizing the likelihood is equivalent to maximizing the log likelihood:
+$$
+\begin{aligned}
+l(\beta) 
+& = \sum_{i=1}^n \{y_i(X_{i}\beta)-\log(1+\exp(X_{i}\beta))\}\\
+& = <X\beta, Y> - \sum_{i=1}^n\log(1+\exp(X_{i}\beta))
+\end{aligned}
+$$
+
+Let $p$, a vector of $n$ denote $p=\frac{\exp(X\beta)}{1+\exp(X\beta)}$. 
+The gradient of this function is:
+$$\nabla l(\beta) = X^T(y-p)$$
+
+The Hessian is given by:
+$$\nabla^2 l(\beta) = -X^T W X$$ where $W = diag(p_1(1-p_1),p_2(1-p_2),\cdots,p_n(1-p_n))$
+Hessian matrix is negative definite, well behaved.
+
+With p = 30 predictors, we obtain a 31 $\times$ 1 gradient vector and 31 $\times$ 31 Hessian matrix
+
+```{r loglikelyhood}
+# Write a function that generate log-likelihood, gradient and Hessian 
+# Inputs:
+
+# x - data variables 
+# y - outcome 
+# par - vector of beta parameters 
+func = function(x, y, par) {
+
+# Log link x*beta 
+  u = x %*% par 
+  expu = exp(u)
+
+loglik = vector(mode = "numeric", length(y)) 
+for(i in 1:length(y)) 
+  loglik[i] = y[i]*u[i] - log(1 + expu[i]) 
+loglik_value = sum(loglik)
+
+# Log-likelihood at betavec
+p <- 1 / (1 + exp(-u))
+
+# P(Y_i=1|x_i) 
+grad = vector(mode = "numeric", length(par))
+
+#grad[1] = sum(y - p) 
+for(i in 1:length(par)) 
+  grad[i] = sum(t(x[,i])%*%(y - p))
+
+#Hess <- -t(x)%*%p%*%t(1-p)%*%x 
+Hess = hess_cal(x, p) 
+return(list(loglik = loglik_value, grad = grad, Hess = Hess))
+
+}
+
+# Function to return the Hessian matrix 
+hess_cal = function(x,p){
+
+len = length(p) 
+hess = matrix(0, ncol(x), ncol(x)) 
+for (i in 1:len) {
+
+x_t = t(x[i,])
+
+unit = t(x_t)%*%x_t*p[i]*(1-p[i])
+
+#unit = t(x[i,])%*%x[i,]*p[i]*(1-p[i])
+
+hess = hess + unit 
+} 
+return(-hess)
+
+}
+```
+
+## 2. Newton-Raphson algorithm
+
+input:
+x: predictors without intercept
+y: response variables
+beta: if not specified, 0 will be set to all coefficients
+tol: the threshold to end up the function if the difference between loglike function at 2 adjacent steps below this value.
+lambda_init: the initial lambda to control the number of each step and lambda will change in halving process.
+decay_rate: the ratio of decayed lambda to lambda at last step in havling process.
+
+output:
+beta: a vector of coeffients
+
+```{r}
+newton_optimize = function(x, y, beta = NULL, tol = 0.001, lambda_init = 1, decay_rate = 0.5){
+  
+  # add the intercept
+  x = cbind(rep(1, nrow(x)), x)
+  
+  # if beta is not specified, set all initial coefficients to 0
+  if (is.null(beta))
+    beta = matrix(rep(0, ncol(x)))
+  
+  # calculate the initial gradient, Hessian matrix and negative loglike funtion
+  optimization = func(x, y, beta)
+  step = 1
+  previous_loglik = -optimization$loglik
+
+  # start the interations to optimize the beta
+  while (TRUE) {
+    print(paste("step:", step, "  negative loglike loss:", -optimization$loglik))
+   
+    # set initial lambda at this step equals to the parameters, this variable will change in havling step
+    lambda = lambda_init
+    
+    # since there maybe some issues when calculate new beta, so we use try-catch sentence. If some errors ocurr, the beta will be kept as the beta at last step.
+    beta_new <- tryCatch({
+        beta - lambda * inv(optimization$Hess) %*% optimization$grad # calculate new beta, if no errors, the result will be given to variable "beta_new" 
+      }, error = function(err) {return(beta)})
+
+    
+    # calculate gradient, Hessian and loglike   
+    optimization = func(x, y, beta_new)
+   
+    
+    # havling steps start only when it optimizes at opposite direction.
+    # if it optimizes at opposite direction, lambda will be havled to make the step smaller. 
+    while (previous_loglik <= -optimization$loglik) {
+      lambda = lambda * decay_rate # lambda decay
+      
+      # same reason to use try-catch
+      # but if errors occur, although beta keeps, the lambda will be havled at next step, makes the result different.
+      beta_new <- tryCatch({
+        beta - lambda * inv(optimization$Hess) %*% optimization$grad
+      }, error = function(err) {return(beta)})
+      
+      # optimize by decayed lambda
+      optimization = func(x, y, beta_new)
+      
+      # if the optimized differences are too small, end up the function and return beta. 
+      if ((previous_loglik - -optimization$loglik) <= tol)
+        return(beta)
+    }
+    
+    # if the differences calculated from normal calculation or havling steps are too small, end up the function and return beta. 
+    if (abs(previous_loglik - -optimization$loglik) <= tol)
+      return(beta)
+    
+    # save the negative loglike value at this step and will be used as previous loglike value at next step.
+    previous_loglik = -optimization$loglik
+    
+    # if the function is not ended up, then the new beta is valid. save it.
+    beta = beta_new 
+    
+    step = step + 1
+  }
+  
+  # so the loop will be ended up by 2 conditions.
+  # 1. the differences calculated by havling steps are too small.
+  # 2. the differences calculated by normal optimization are too small.
+  return(beta)
+}
+
+
+```
+
+# Prediction
+
+```{r}
+predict = function(beta, x){
+  x = cbind(rep(1, nrow(x)), x)
+  predict_y = 1 / (1 + exp(-x %*% beta))
+  predict_y[predict_y < 0.5] = 0 
+  predict_y[predict_y >= 0.5] = 1
+  return(predict_y)
+}
+  
+
+```
+
+# Loading the data and run function
+```{r,warning=FALSE}
+x = breast_dat %>% select(-diagnosis) %>% as.matrix()
+
+# make the response variables
+y = breast_dat %>% 
+  select(diagnosis) %>% 
+  as.matrix()
+
+
+# calculate beta_hat by newton method 3
+beta = newton_optimize(x, y, tol = 0.01)
+
+# predict
+predict(beta, x)
+
+# check the data in glm
+model = glm(y ~ x, family = "binomial")
+model$coefficients
+```
+

@@ -57,6 +57,18 @@ The Hessian is given by
 \[\nabla^2 f(\beta_0,\beta) = -X^TWX\]
 where $W = p_i(1-p_i)$.
 
+### Newton-Raphson Algorithm
+
+### Path-wise Coordinate-wise Optimization Algorithm
+To obtain a path of solutions with a descending sequence of $\lambda$’s in a logistic-LASSO model, we can implement a path-wise coordinate-wise optimization algorithm which contains the following steps:
+\begin{itemize}
+\item Step 1: Find the smallest value $\lambda$ for which all the estimated $\beta$ are 0, defined as $\lambda_{max}$.
+\item Step 2: Define a fine sequence $\lambda_{max} \ge \lambda_1 \ge ... \lambda_{min} \ge 0$.
+\item Step 3: Define a quadratic approximated objective function \[L(\beta_0, \textbf{$\beta$}, \lambda)\] for $\lambda_k$ using the estimated parameter at $\lambda_{k-1}$ ($\lambda_{k-1} > \lambda_k$).
+\item Step 4: Run coordinate descendent algorithm to find the optimization defined in Step 3.
+\end{itemize}
+
+
 # Results
 
 # Conclusions
@@ -74,23 +86,9 @@ library(ggcorrplot)
 ## data import and data clean
 ```{r}
 #load the data
-breast_dat = read_csv("breast-cancer.csv") %>% 
+breast_dat = read.csv("breast-cancer.csv")[, -33] %>% 
   janitor::clean_names() %>% 
-  select(-33) %>% #drop NA column
-  add_row(id = 92751, diagnosis = "B", radius_mean = 7.76, texture_mean = 24.54,
-          perimeter_mean = 47.92, area_mean = 181, smoothness_mean = 0.05263,
-          compactness_mean = 0.04362, concavity_mean = 0, 
-          concave_points_mean = 0, symmetry_mean = 0.1587,
-          fractal_dimension_mean = 0.05884, radius_se = 0.3857, 
-          texture_se = 1.428, perimeter_se = 2.548, area_se = 19.15,
-          smoothness_se = 0.007189, compactness_se = 0.00466, concavity_se = 0,
-          concave_points_se = 0, symmetry_se = 0.02676, 
-          fractal_dimension_se = 0.002783, radius_worst = 9.456, 
-          texture_worst = 30.37, perimeter_worst = 59.16, area_worst = 268.6,
-          smoothness_worst = 0.08996, compactness_worst = 0.06444,
-          concavity_worst = 0, concave_points_worst = 0, 
-          symmetry_worst = 0.2871, fractal_dimension_worst = 0.07039) 
-  #add missing row
+  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0))
 
 
 head(breast_dat, 5)
@@ -164,8 +162,7 @@ mean_data = breast_dat %>%
 ```
 
 ```{r}
-logdata = cbind.data.frame(y, X)
-log_model = glm(y ~ ., family = binomial(link = "logit"),data = logdata)
+log_model = glm(diagnosis ~ ., family = binomial("logit"), data  = breast_dat[, -1], start = rep(0, 31))
 summary(log_model)
 ```
 

@@ -1,0 +1,228 @@
+---
+title: "lasso-pathwise-cv"
+author: "Haotian Wu, Lin Yang"
+date: "3/15/2022"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(caret)
+library(pROC)
+library(glmnet)
+```
+
+## data import
+```{r}
+breast_dat = read_csv("breast-cancer.csv") %>% 
+  select(-1, -33) %>% 
+  janitor::clean_names() %>% 
+  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0)) %>% 
+  add_row(diagnosis = 0, radius_mean = 7.76, texture_mean = 24.54,
+          perimeter_mean = 47.92, area_mean = 181, smoothness_mean = 0.05263,
+          compactness_mean = 0.04362, concavity_mean = 0, 
+          concave_points_mean = 0, symmetry_mean = 0.1587,
+          fractal_dimension_mean = 0.05884, radius_se = 0.3857, 
+          texture_se = 1.428, perimeter_se = 2.548, area_se = 19.15,
+          smoothness_se = 0.007189, compactness_se = 0.00466, concavity_se = 0,
+          concave_points_se = 0, symmetry_se = 0.02676, 
+          fractal_dimension_se = 0.002783, radius_worst = 9.456, 
+          texture_worst = 30.37, perimeter_worst = 59.16, area_worst = 268.6,
+          smoothness_worst = 0.08996, compactness_worst = 0.06444,
+          concavity_worst = 0, concave_points_worst = 0, 
+          symmetry_worst = 0.2871, fractal_dimension_worst = 0.07039) 
+
+
+head(breast_dat, 5)
+x <- breast_dat[2:31] #predictors
+y <- breast_dat[1] #response
+```
+
+## coordinate-wise optimization of a logistic-lasso model
+```{r}
+#soft threshold
+sfxn <- function(beta, lambda) {
+  if (abs(beta) > lambda) {
+    return(sign(beta) * (abs(beta) - lambda))
+  }
+  else {
+    return(0)
+  }
+}
+```
+
+```{r}
+#coordinate-wise optimization function
+coordwise_lasso <- function(lambda, x, y, betastart, tol = exp(-10), maxiter = 1000) {
+  x_standard <- cbind(rep(1, nrow(x)), scale(x)) #standardize data
+  i <- 0
+  n <- length(y)
+  pnum <- length(betastart)
+  betavec <- betastart
+  loglik <- 0
+  res <- c(0, loglik, betavec)
+  prevloglik <- -Inf
+  while (i < maxiter & abs(loglik - prevloglik) > tol & loglik < Inf) {
+    i <- i + 1
+    prevloglik <- loglik
+    for (j in 1:pnum) {
+      theta <- x_standard %*% betavec
+      p <- exp(theta) / (1 + exp(theta)) #probability of malignant cases
+      w <- p*(1-p) #working weights
+      w <- ifelse(abs(w-0) < 1e-5, 1e-5, w)
+      z <- theta + (y - p)/w #working response
+      zwoj <- x_standard[, -j] %*% betavec[-j]
+      betavec[j] <- sfxn(sum(w*(x_standard[,j])*(z - zwoj)), lambda) / (sum(w*x_standard[,j]*x_standard[,j]))
+    }
+    loglik <- sum(w*(z - x_standard %*% betavec)^2) / (2*n) + lambda * sum(abs(betavec))
+    res <- rbind(res, c(i, loglik, betavec))
+  }
+  return(res)
+}
+coordwise_res <- coordwise_lasso(lambda = 2, x, y, betastart = rep(0, 31))
+coordwise_res[nrow(coordwise_res), ]
+```
+
+We need to calculate lambdamax first to define a sequence of lambda. 
+```{r}
+x.matrix <- as.matrix(x)
+#create a list to store for loop results
+resls <- list()
+lambdamax <- function(matrix, vector) {
+  for (i in 1:ncol(matrix)) {
+    res <- sum(matrix[, i] * y)
+    resls[[i]] <- res
+  }
+  return(resls)
+}
+
+lambda_ls <- lambdamax(x.matrix, y) 
+lambda_df <- as.data.frame(do.call(rbind, lambda_ls))
+maxlambda <- max(lambda_df) / nrow(y)
+maxlambda
+```
+
+
+```{r}
+#a path of solutions
+pathwise <- function(x, y, lambda) {
+  n <- length(lambda)
+  betastart <- rep(0, 31)
+  betas <- NULL
+  for (i in 1:n) {
+    coordwise_res <- coordwise_lasso(lambda = lambda[i],
+                                     x = x,
+                                     y = y,
+                                     betastart = betastart)
+    curbeta <- coordwise_res[nrow(coordwise_res), 3:33]
+    betastart <- curbeta
+    betas <- rbind(betas, c(curbeta))
+  }
+  return(data.frame(cbind(lambda, betas)))
+}
+
+pathwise_sol <- pathwise(x, y, lambda = seq(8, 0, length = 30))
+pathwise_sol
+```
+
+
+## cross-validation
+
+```{r}
+#set.seed(8160)
+#trnctl = trainControl(method = "cv", number = 5)
+#
+### lasso
+#lasso_fit = train(x, y, method = "glmnet",
+#               tuneGrid = expand.grid(alpha = 1, #lasso
+#                                      lambda = exp(seq(4, -4, length = 50))),
+#               trControl = trnctl)
+#
+#lasso_fit$bestTune
+
+```
+
+
+
+```{r cross validation}
+set.seed(8160)
+
+cv = function(data, lambda) {
+  n <- nrow(data)
+  data <- data[sample(n), ] #shuffle the data
+  folds <- cut(seq(1, nrow(data)), breaks = 5, labels = FALSE) #Create 5 equal size folds
+ # mse <- data.frame() #a data frame storing mse results
+  #mse_lambda <- vector()
+  #se <- vector() #a vector storing test errors
+  res <- lambda 
+  #se <- vector() #a vectro storing test errors
+  
+    #Perform 5 fold cross validation
+  for (i in 1:5){
+    #partition the data into train and test data
+    testRows <- which(folds == i, arr.ind = TRUE)
+    data_test <- data[testRows, ]
+    data_train <- data[-testRows, ]
+    x_train <- data_train[2:31]
+    y_train <- data_train[1]
+    x_test <- data_test[2:31]
+    #standardized test data
+    x_test_stan <- cbind(rep(1, nrow(x_test)), scale(x_test))
+    y_test <- data_test %>% mutate(diagnosis = factor(diagnosis))
+    y_test <- y_test$diagnosis
+    #Use the test and train data partitions to perform lasso
+    path_sol <- pathwise(x = x_train,
+                         y = y_train,
+                         lambda = lambda)
+    print(path_sol)
+    auc <- vector()
+    for (j in 1:length(lambda)) {
+      curbeta <- as.numeric(path_sol[j, 2:32])
+      theta <- x_test_stan %*% curbeta
+      p <- exp(theta) / (1 + exp(theta)) 
+      auc[j] <- auc(y_test, p)
+    }
+    print(auc)
+    res <- cbind(res, auc)
+    print(res)
+  }
+  return(res)
+    #se[j] <- sqrt(var(error)/5)
+  #cv.auc.lambda <- rowMeans(mse)
+  #return(cv.auc.lambda)
+}
+
+cv_test = cv(data = breast_dat, lambda = seq(8, 0, length = 30))
+```
+
+```{r}
+#set.seed(2022)
+#x.matrix <- as.matrix(x)
+#y.matrix <- as.matrix(y)
+#cv.lasso1 <- cv.glmnet(x.matrix, y.matrix, alpha = 1, family = "binomial", nfolds = 5)
+#plot(cv.lasso1)
+#lambda1 <- cv.lasso1$lambda.min
+```
+
+
+
+```{r}
+#breast_dat[sample(nrow(breast_dat)), ]
+#folds <- cut(seq(1, nrow(breast_dat)), breaks = 5, labels = FALSE)
+#testIndexes = which(folds == 1, arr.ind = TRUE)
+#x_train <- breast_dat[-testIndexes, 2:31]
+#y_train <- breast_dat[-testIndexes, 1]
+#x_test <- breast_dat[testIndexes, 2:31]
+#x_test_stan <- cbind(rep(1, nrow(x_test)), scale(x_test))
+#y_test <- breast_dat[testIndexes, ] %>% mutate(diagnosis = factor(diagnosis))
+#y_test <- y_test$diagnosis
+#aa <- coordwise_lasso(lambda = 0.5, x_train, y_train, betastart = rep(0, 31))
+#a <- as.numeric(aa[nrow(aa), 3:33])
+#theta1 <- x_test_stan %*% a
+#p1 <- exp(theta1) / (1+exp(theta1))
+#auc(y_test, p1)
+
+
+```
+
