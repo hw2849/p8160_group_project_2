@@ -13,7 +13,8 @@ library(tidyverse)
 library(caret)
 library(ggcorrplot)
 library(MASS)
-
+library(pROC)
+library(glmnet)
 ```
 
 ## data import and data clean
@@ -21,8 +22,9 @@ library(MASS)
 #load the data
 breast_dat = read_csv("breast-cancer.csv") %>% 
   janitor::clean_names() %>% 
-  select(-33) %>% #drop NA column
-  add_row(id = 92751, diagnosis = "B", radius_mean = 7.76, texture_mean = 24.54,
+  dplyr::select(-1, -33) %>% #drop id and NA columns
+  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0)) %>% 
+  add_row(diagnosis = 0, radius_mean = 7.76, texture_mean = 24.54,
           perimeter_mean = 47.92, area_mean = 181, smoothness_mean = 0.05263,
           compactness_mean = 0.04362, concavity_mean = 0, 
           concave_points_mean = 0, symmetry_mean = 0.1587,
@@ -34,11 +36,12 @@ breast_dat = read_csv("breast-cancer.csv") %>%
           texture_worst = 30.37, perimeter_worst = 59.16, area_worst = 268.6,
           smoothness_worst = 0.08996, compactness_worst = 0.06444,
           concavity_worst = 0, concave_points_worst = 0, 
-          symmetry_worst = 0.2871, fractal_dimension_worst = 0.07039) %>% 
-  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0)) %>% 
-  select(-1)
-  #add missing row
+          symmetry_worst = 0.2871, fractal_dimension_worst = 0.07039)
 
+#partition data into training and test data
+trainRows <- createDataPartition(y = breast_dat$diagnosis, p = 0.8, list = FALSE)
+breast_train <- breast_dat[trainRows, ]
+breast_test <-  breast_dat[-trainRows, ]
 
 head(breast_dat, 5)
 
@@ -165,4 +168,185 @@ beta = rep(0.001, 31)
 res = newtonraphson(breast_dat, logisticstuff, beta)
 ```
 
+
+## coordinate-wise optimization of a logistic-lasso model
+
+```{r}
+x_train <- breast_train[2:31] #predictors
+y_train <- breast_train[1] #response
+
+x_test <- breast_test[2:31]
+y_test <- breast_test[1]
+```
+
+
+```{r}
+#soft threshold
+sfxn <- function(beta, lambda) {
+  if (abs(beta) > lambda) {
+    return(sign(beta) * (abs(beta) - lambda))
+  }
+  else {
+    return(0)
+  }
+}
+```
+
+```{r}
+#coordinate-wise optimization function
+coordwise_lasso <- function(lambda, x, y, betastart, tol = exp(-10), maxiter = 10000) {
+  i <- 0
+  n <- length(y)
+  pnum <- length(betastart)
+  betavec <- betastart
+  loglik <- 0
+  res <- c(0, loglik, betavec)
+  prevloglik <- -Inf
+  while (i < maxiter & abs(loglik - prevloglik) > tol & loglik < Inf) {
+    i <- i + 1
+    prevloglik <- loglik
+    for (j in 1:pnum) {
+      theta <- x %*% betavec
+      p <- exp(theta) / (1 + exp(theta)) #probability of malignant cases
+      w <- p*(1-p) #working weights
+      w <- ifelse(abs(w-0) < 1e-5, 1e-5, w)
+      z <- theta + (y - p)/w #working response
+      zwoj <- x[, -j] %*% betavec[-j]
+      betavec[j] <- sfxn(sum(w*(x[,j])*(z - zwoj)), lambda) / (sum(w*x[,j]*x[,j]))
+    }
+    theta <- x %*% betavec
+    p <- exp(theta) / (1 + exp(theta)) #probability of malignant cases
+    w <- p*(1-p) #working weights
+    w <- ifelse(abs(w-0) < 1e-10, 1e-10, w)
+    z <- theta + (y - p)/w
+    loglik <- sum(w*(z - theta)^2) / (2*n) + lambda * sum(abs(betavec))
+    res <- rbind(res, c(i, loglik, betavec))
+  }
+  return(res)
+}
+
+x_train_stan <- cbind(rep(1, nrow(x_train)), scale(x_train))
+#coordwise_res <- coordwise_lasso(lambda = 0.018, x_stan, y, betastart = rep(0, 31))
+#coordwise_res[nrow(coordwise_res), ]
+```
+
+We need to calculate lambdamax first to define a sequence of lambda. 
+```{r}
+x.matrix <- scale(x_train) %>% as.matrix()
+y.matrix <- as.matrix(y_train)
+lambdamax <- max(abs(t(x.matrix) %*% y.matrix))
+lambdamax <- lambdamax/nrow(y.matrix)
+lambda_seq <- exp(seq(log(lambdamax), -4, length = 50))
+```
+
+
+```{r}
+#a path of solutions
+pathwise <- function(x, y, lambda) {
+  n <- length(lambda)
+  betastart <- rep(0, 31)
+  betas <- NULL
+  for (i in 1:n) {
+    coordwise_res <- coordwise_lasso(lambda = lambda[i],
+                                     x = x,
+                                     y = y,
+                                     betastart = betastart)
+    curbeta <- coordwise_res[nrow(coordwise_res), 3:33]
+    betastart <- curbeta
+    betas <- rbind(betas, c(curbeta))
+  }
+  return(data.frame(cbind(lambda, betas)))
+}
+
+pathwise_sol <- pathwise(x_train_stan, y_train, lambda_seq)
+pathwise_sol
+```
+
+
+
+## cross-validation
+```{r}
+set.seed(2022)
+
+cv = function(data, lambda) {
+  n <- nrow(data)
+  data <- data[sample(n), ] #shuffle the data
+  folds <- cut(seq(1, nrow(data)), breaks = 5, labels = FALSE) #Create 5 equal size folds
+ # mse <- data.frame() #a data frame storing mse results
+  #mse_lambda <- vector()
+  #se <- vector() #a vector storing test errors
+  res <- lambda 
+  #se <- vector() #a vectro storing test errors
+  
+    #Perform 5 fold cross validation
+  for (i in 1:5) {
+    #partition the data into train and test data
+    testRows <- which(folds == i, arr.ind = TRUE)
+    data_test <- data[testRows, ]
+    data_train <- data[-testRows, ]
+    x_train <- data_train[2:31]
+    x_train_stan <- cbind(rep(1, nrow(x_train)), scale(x_train))
+    y_train <- data_train[1]
+    x_test <- data_test[2:31]
+    #standardized test data
+    x_test_stan <- cbind(rep(1, nrow(x_test)), scale(x_test))
+    y_test <- data_test %>% mutate(diagnosis = factor(diagnosis))
+    y_test <- y_test$diagnosis
+    #Use the test and train data partitions to perform lasso
+    path_sol <- pathwise(x = x_train_stan,
+                         y = y_train,
+                         lambda = lambda)
+    mean <- vector()
+    for (j in 1:length(lambda)) {
+      curbeta <- as.numeric(path_sol[j, 2:32])
+      theta <- x_test_stan %*% curbeta
+      p <- exp(theta) / (1 + exp(theta)) 
+      #auc[j] <- auc(y_test, p)
+      y.pred <- ifelse(p > 0.5, 1, 0)
+      mean[j] <- mean(y.pred == y_test)
+    }
+    print(mean)
+    res <- cbind(res, mean)
+    print(res)
+  }
+  return(res)
+    #se[j] <- sqrt(var(error)/5)
+  #cv.auc.lambda <- rowMeans(mse)
+  #return(cv.auc.lambda)
+}
+
+cv_test = cv(data = breast_train, lambda_seq)
+
+lll <- as.data.frame(cv_test) #colnames(c("auc1", "auc2", "auc3", "auc4", "auc5"))
+colnames(lll) <- c("res", "auc1", "auc2", "auc3", "auc4", "auc5")
+lll<-lll %>% dplyr::select(-1)
+mean <- rowMeans(lll)
+max(mean)
+```
+
+```{r}
+beta <- pathwise_sol[49, 2:32]
+theta <- x_train_stan %*% t(beta)
+p <- exp(theta) / (1 + exp(theta))
+y.pred <- ifelse(p > 0.5, 1, 0)
+mean(y.pred == y_train)
+auc(y_train, p)
+
+y_train <- breast_train %>% mutate(diagnosis = factor(diagnosis))
+y_train <- y_train$diagnosis
+```
+
+
+
+
+
+```{r}
+#prediction performance function
+lasso_predict <- function(x, y, betavec) {
+  theta <- x %*% betavec
+  p <- exp(theta) / (1 + exp(theta))
+  auc <- auc(y, p)
+  return(auc)
+}
+```
 
