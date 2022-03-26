@@ -24,11 +24,15 @@ Our data set consistes of 569 rows, with 357 benign and 212 malignant. We denote
 \item fractal dimension ("coastline approximation" - 1)
 \end{itemize}
 
+### EDA
+
+We built three feature plots to analyze the relationship between variables. 
+The mean variables was plotted in first figure. From this plot, we can see that there are strong correlations between radius mean with perimeter mean and between radius mean with area mean. Perimeter mean and area mean also have strong correlation. Similarly, for the largest values, there are strong correlations between radius, perimeter and area. The correlations are reasonable because perimeter and area are calculated based on radius. 
+
+For benign cases, all of the 10 features' means and largest values are smaller than malignant cases. 
+
 # Methods
 
-### Variables Selection
-
-Among the 30 explanatory variables that we have, not all of them are necessary for the prediction model. Therefore, we dropped the columns that have high correlation with other columns. The 11 variables we left in the end have correlations less than 0.7 with each other.
 
 ### Logistic Model
 
@@ -50,7 +54,7 @@ The gradient of this function is:
 where $p_i = P(y_i=1|X_i)$ as mentioned in previous probability function.
 
 The Hessian is given by
-\[\nabla^2 f(\beta_0,\beta) = -XX^TW\]
+\[\nabla^2 f(\beta_0,\beta) = -X^TWX\]
 where $W = p_i(1-p_i)$.
 
 # Results
@@ -129,9 +133,40 @@ ggcorrplot(corr, type = "upper")
 #ggcorrplot(corr_new, type = "upper", lab = TRUE)
 ```
 
+# feature plot
+
+```{r}
+data = cbind(y,X)
+
+featurePlot(x = data[, 2:11],
+            y = factor(data$y),
+            plot = "pairs",
+            auto.key = list(columns = 2)
+)
+
+featurePlot(x = data[, 12:21],
+            y = factor(data$y),
+            plot = "pairs",
+            auto.key = list(columns = 2)
+)
+
+featurePlot(x = data[, 22:31],
+            y = factor(data$y),
+            plot = "pairs",
+            auto.key = list(columns = 2)
+)
+```
+
+```{r}
+mean_data = breast_dat %>% 
+  group_by(diagnosis) %>% 
+  summarise(across(radius_mean: fractal_dimension_worst, ~ mean(.x, na.rm = TRUE)))
+```
+
 ```{r}
 logdata = cbind.data.frame(y, X)
 log_model = glm(y ~ ., family = binomial(link = "logit"),data = logdata)
 summary(log_model)
 ```
+
 
