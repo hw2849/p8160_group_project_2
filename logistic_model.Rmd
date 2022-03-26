@@ -20,8 +20,9 @@ library(glmnet)
 ## data import and data clean
 ```{r}
 #load the data
-breast_dat = read_csv("breast-cancer.csv") %>% 
+breast_dat = read.csv("breast-cancer.csv")[, -33] %>% 
   janitor::clean_names() %>% 
+<<<<<<< HEAD
   dplyr::select(-1, -33) %>% #drop id and NA columns
   mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0)) %>% 
   add_row(diagnosis = 0, radius_mean = 7.76, texture_mean = 24.54,
@@ -37,6 +38,9 @@ breast_dat = read_csv("breast-cancer.csv") %>%
           smoothness_worst = 0.08996, compactness_worst = 0.06444,
           concavity_worst = 0, concave_points_worst = 0, 
           symmetry_worst = 0.2871, fractal_dimension_worst = 0.07039)
+=======
+  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0))
+>>>>>>> b4b7a99ab1a5903eef4004a888237bb54387d054
 
 #partition data into training and test data
 trainRows <- createDataPartition(y = breast_dat$diagnosis, p = 0.8, list = FALSE)
@@ -84,8 +88,7 @@ ggcorrplot(corr, type = "upper")
 ```
 
 ```{r}
-logdata = cbind.data.frame(y, X)
-log_model = glm(y ~ ., family = binomial(link = "logit"),data = logdata)
+log_model = glm(diagnosis ~ ., family = binomial("logit"), data  = breast_dat[, -1], start = rep(0, 31))
 summary(log_model)
 ```
 
