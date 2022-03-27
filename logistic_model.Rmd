@@ -22,10 +22,6 @@ library(glmnet)
 #load the data
 breast_dat = read.csv("breast-cancer.csv") %>% 
   janitor::clean_names() %>% 
-<<<<<<< HEAD
-  dplyr::select(-1, -33) %>% #drop NA column
-  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0)) 
-=======
   dplyr::select(-1, -33) %>% #drop id and NA columns
   mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0))
 
@@ -33,7 +29,6 @@ breast_dat = read.csv("breast-cancer.csv") %>%
 trainRows <- createDataPartition(y = breast_dat$diagnosis, p = 0.8, list = FALSE)
 breast_train <- breast_dat[trainRows, ]
 breast_test <-  breast_dat[-trainRows, ]
->>>>>>> 857147effbc26c3d86cc2fa146be645ff4e479a0
 
 head(breast_dat, 5)
 
@@ -76,7 +71,7 @@ ggcorrplot(corr, type = "upper")
 ```
 
 ```{r}
-log_model = glm(diagnosis ~ ., family = binomial("logit"), data  = breast_dat[, -1], start = rep(0, 31))
+log_model = glm(diagnosis ~ ., family = binomial("logit"), data  = breast_dat[, -1])
 summary(log_model)
 ```
 
@@ -153,8 +148,7 @@ newtonraphson = function(dat, func, start, tol = 1e-8, maxiter = 100){
 
 res = newtonraphson(breast_dat, logisticstuff, beta)
 ```
-<<<<<<< HEAD
-=======
+
 
 
 ## coordinate-wise optimization of a logistic-lasso model
@@ -249,7 +243,6 @@ pathwise_sol
 ```
 
 
-
 ## cross-validation
 ```{r}
 set.seed(2022)
@@ -321,4 +314,3 @@ predict <- function(x, y, betavec) {
 }
 ```
 
->>>>>>> 857147effbc26c3d86cc2fa146be645ff4e479a0
