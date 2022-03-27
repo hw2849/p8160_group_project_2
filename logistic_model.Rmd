@@ -13,7 +13,8 @@ library(tidyverse)
 library(caret)
 library(ggcorrplot)
 library(MASS)
-
+library(pROC)
+library(glmnet)
 ```
 
 ## data import and data clean
@@ -21,8 +22,18 @@ library(MASS)
 #load the data
 breast_dat = read.csv("breast-cancer.csv") %>% 
   janitor::clean_names() %>% 
+<<<<<<< HEAD
   dplyr::select(-1, -33) %>% #drop NA column
   mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0)) 
+=======
+  dplyr::select(-1, -33) %>% #drop id and NA columns
+  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0))
+
+#partition data into training and test data
+trainRows <- createDataPartition(y = breast_dat$diagnosis, p = 0.8, list = FALSE)
+breast_train <- breast_dat[trainRows, ]
+breast_test <-  breast_dat[-trainRows, ]
+>>>>>>> 857147effbc26c3d86cc2fa146be645ff4e479a0
 
 head(breast_dat, 5)
 
@@ -65,8 +76,7 @@ ggcorrplot(corr, type = "upper")
 ```
 
 ```{r}
-logdata = cbind.data.frame(y, X)
-log_model = glm(y ~ ., family = binomial(link = "logit"),data = logdata)
+log_model = glm(diagnosis ~ ., family = binomial("logit"), data  = breast_dat[, -1], start = rep(0, 31))
 summary(log_model)
 ```
 
@@ -143,3 +153,172 @@ newtonraphson = function(dat, func, start, tol = 1e-8, maxiter = 100){
 
 res = newtonraphson(breast_dat, logisticstuff, beta)
 ```
+<<<<<<< HEAD
+=======
+
+
+## coordinate-wise optimization of a logistic-lasso model
+
+```{r}
+x_train <- breast_train[2:31] #predictors
+y_train <- breast_train[1] #response
+x_train_stan <- cbind(rep(1, nrow(x_train)), scale(x_train))
+
+x_test <- breast_test[2:31]
+y_test <- breast_test[1]
+```
+
+
+```{r}
+#soft threshold
+sfxn <- function(beta, lambda) {
+  if (abs(beta) > lambda) {
+    return(sign(beta) * (abs(beta) - lambda))
+  }
+  else {
+    return(0)
+  }
+}
+```
+
+```{r}
+#coordinate-wise optimization function
+coordwise_lasso <- function(lambda, x, y, betastart, tol = exp(-10), maxiter = 10000) {
+  i <- 0
+  n <- length(y)
+  pnum <- length(betastart)
+  betavec <- betastart
+  loglik <- 0
+  res <- c(0, loglik, betavec)
+  prevloglik <- -Inf
+  while (i < maxiter & abs(loglik - prevloglik) > tol & loglik < Inf) {
+    i <- i + 1
+    prevloglik <- loglik
+    for (j in 1:pnum) {
+      theta <- x %*% betavec
+      p <- exp(theta) / (1 + exp(theta)) #probability of malignant cases
+      w <- p*(1-p) #working weights
+      w <- ifelse(abs(w-0) < 1e-5, 1e-5, w)
+      z <- theta + (y - p)/w #working response
+      zwoj <- x[, -j] %*% betavec[-j]
+      betavec[j] <- sfxn(sum(w*(x[,j])*(z - zwoj)), lambda) / (sum(w*x[,j]*x[,j]))
+    }
+    theta <- x %*% betavec
+    p <- exp(theta) / (1 + exp(theta)) #probability of malignant cases
+    w <- p*(1-p) #working weights
+    w <- ifelse(abs(w-0) < 1e-10, 1e-10, w)
+    z <- theta + (y - p)/w
+    loglik <- sum(w*(z - theta)^2) / (2*n) + lambda * sum(abs(betavec))
+    res <- rbind(res, c(i, loglik, betavec))
+  }
+  return(res)
+}
+#coordwise_res <- coordwise_lasso(lambda = 0.018, x_stan, y, betastart = rep(0, 31))
+#coordwise_res[nrow(coordwise_res), ]
+```
+
+We need to calculate lambdamax first to define a sequence of lambda. 
+```{r}
+x.matrix <- scale(x_train) %>% as.matrix()
+y.matrix <- as.matrix(y_train)
+lambdamax <- max(abs(t(x.matrix) %*% y.matrix)) / nrow(y.matrix)
+lambda_seq <- exp(seq(log(lambdamax), -4, length = 50))
+```
+
+
+```{r}
+#a path of solutions
+pathwise <- function(x, y, lambda) {
+  n <- length(lambda)
+  betastart <- rep(0, 31)
+  betas <- NULL
+  for (i in 1:n) {
+    coordwise_res <- coordwise_lasso(lambda = lambda[i],
+                                     x = x,
+                                     y = y,
+                                     betastart = betastart)
+    curbeta <- coordwise_res[nrow(coordwise_res), 3:33]
+    betastart <- curbeta
+    betas <- rbind(betas, c(curbeta))
+  }
+  return(data.frame(cbind(lambda, betas)))
+}
+
+pathwise_sol <- pathwise(x_train_stan, y_train, lambda_seq)
+pathwise_sol
+```
+
+
+
+## cross-validation
+```{r}
+set.seed(2022)
+
+cv = function(data, lambda) {
+  n <- nrow(data)
+  data <- data[sample(n), ] #shuffle the data
+  folds <- cut(seq(1, nrow(data)), breaks = 5, labels = FALSE) #Create 5 equal size folds
+ # mse <- data.frame() #a data frame storing mse results
+  #mse_lambda <- vector()
+  #se <- vector() #a vector storing test errors
+  res <- lambda 
+  #se <- vector() #a vectro storing test errors
+  
+    #Perform 5 fold cross validation
+  for (i in 1:5) {
+    #partition the data into train and test data
+    testRows <- which(folds == i, arr.ind = TRUE)
+    data_test <- data[testRows, ]
+    data_train <- data[-testRows, ]
+    x_train <- data_train[2:31]
+    x_train_stan <- cbind(rep(1, nrow(x_train)), scale(x_train))
+    y_train <- data_train[1]
+    x_test <- data_test[2:31]
+    #standardized test data
+    x_test_stan <- cbind(rep(1, nrow(x_test)), scale(x_test))
+    y_test <- data_test %>% mutate(diagnosis = factor(diagnosis))
+    y_test <- y_test$diagnosis
+    #Use the test and train data partitions to perform lasso
+    path_sol <- pathwise(x = x_train_stan,
+                         y = y_train,
+                         lambda = lambda)
+    accuracy <- vector()
+    for (j in 1:length(lambda)) {
+      curbeta <- as.numeric(path_sol[j, 2:32])
+      theta <- x_test_stan %*% curbeta
+      p <- exp(theta) / (1 + exp(theta)) 
+      #auc[j] <- auc(y_test, p)
+      y.pred <- ifelse(p > 0.5, 1, 0)
+      accuracy[j] <- mean(y.pred == y_test)
+    }
+    print(accuracy)
+    res <- cbind(res, accuracy)
+    print(res)
+  }
+  return(res)
+    #se[j] <- sqrt(var(error)/5)
+  #cv.auc.lambda <- rowMeans(mse)
+  #return(cv.auc.lambda)
+}
+
+cv_test = cv(data = breast_train, lambda_seq)
+
+lll <- as.data.frame(cv_test) #colnames(c("auc1", "auc2", "auc3", "auc4", "auc5"))
+colnames(lll) <- c("res", "auc1", "auc2", "auc3", "auc4", "auc5")
+lll<-lll %>% dplyr::select(-1)
+mean <- rowMeans(lll)
+max(mean)
+```
+
+```{r}
+#prediction performance function
+predict <- function(x, y, betavec) {
+  theta <- x %*% betavec
+  p <- exp(theta) / (1 + exp(theta))
+  y.pred <- ifelse(p > 0.5, 1, 0)
+  accuracy <- mean(y.pred == y_test)
+  return(accuracy)
+}
+```
+
+>>>>>>> 857147effbc26c3d86cc2fa146be645ff4e479a0

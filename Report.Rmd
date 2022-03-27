@@ -2,8 +2,9 @@
 title: "Project 2: Breast Cancer Diagnosis"
 author: "Xinran Sun"
 date: "3/17/2022"
+header-includes:
+   - \usepackage{amsmath}
 output: pdf_document
-- \usepackage{amsmath}
 ---
 # Objectives
 
@@ -25,11 +26,15 @@ Our data set consistes of 569 rows, with 357 benign and 212 malignant. We denote
 \item fractal dimension ("coastline approximation" - 1)
 \end{itemize}
 
+### EDA
+
+We built three feature plots to analyze the relationship between variables. 
+The mean variables was plotted in first figure. From this plot, we can see that there are strong correlations between radius mean with perimeter mean and between radius mean with area mean. Perimeter mean and area mean also have strong correlation. Similarly, for the largest values, there are strong correlations between radius, perimeter and area. The correlations are reasonable because perimeter and area are calculated based on radius. 
+
+For benign cases, all of the 10 features' means and largest values are smaller than malignant cases. 
+
 # Methods
 
-### Variables Selection
-
-Among the 30 explanatory variables that we have, not all of them are necessary for the prediction model. Therefore, we dropped the columns that have high correlation with other columns. The 11 variables we left in the end have correlations less than 0.7 with each other.
 
 ### Logistic Model
 
@@ -51,7 +56,7 @@ The gradient of this function is:
 where $p_i = P(y_i=1|X_i)$ as mentioned in previous probability function.
 
 The Hessian is given by
-\[\nabla^2 f(\beta_0,\beta) = -XX^TW\]
+\[\nabla^2 f(\beta_0,\beta) = -X^TWX\]
 where $W = p_i(1-p_i)$.
 
 ### Newton-Raphson Algorithm
@@ -83,23 +88,9 @@ library(ggcorrplot)
 ## data import and data clean
 ```{r}
 #load the data
-breast_dat = read_csv("breast-cancer.csv") %>% 
+breast_dat = read.csv("breast-cancer.csv")[, -33] %>% 
   janitor::clean_names() %>% 
-  select(-33) %>% #drop NA column
-  add_row(id = 92751, diagnosis = "B", radius_mean = 7.76, texture_mean = 24.54,
-          perimeter_mean = 47.92, area_mean = 181, smoothness_mean = 0.05263,
-          compactness_mean = 0.04362, concavity_mean = 0, 
-          concave_points_mean = 0, symmetry_mean = 0.1587,
-          fractal_dimension_mean = 0.05884, radius_se = 0.3857, 
-          texture_se = 1.428, perimeter_se = 2.548, area_se = 19.15,
-          smoothness_se = 0.007189, compactness_se = 0.00466, concavity_se = 0,
-          concave_points_se = 0, symmetry_se = 0.02676, 
-          fractal_dimension_se = 0.002783, radius_worst = 9.456, 
-          texture_worst = 30.37, perimeter_worst = 59.16, area_worst = 268.6,
-          smoothness_worst = 0.08996, compactness_worst = 0.06444,
-          concavity_worst = 0, concave_points_worst = 0, 
-          symmetry_worst = 0.2871, fractal_dimension_worst = 0.07039) 
-  #add missing row
+  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0))
 
 
 head(breast_dat, 5)
@@ -142,9 +133,39 @@ ggcorrplot(corr, type = "upper")
 #ggcorrplot(corr_new, type = "upper", lab = TRUE)
 ```
 
+# feature plot
+
 ```{r}
-logdata = cbind.data.frame(y, X)
-log_model = glm(y ~ ., family = binomial(link = "logit"),data = logdata)
+data = cbind(y,X)
+
+featurePlot(x = data[, 2:11],
+            y = factor(data$y),
+            plot = "pairs",
+            auto.key = list(columns = 2)
+)
+
+featurePlot(x = data[, 12:21],
+            y = factor(data$y),
+            plot = "pairs",
+            auto.key = list(columns = 2)
+)
+
+featurePlot(x = data[, 22:31],
+            y = factor(data$y),
+            plot = "pairs",
+            auto.key = list(columns = 2)
+)
+```
+
+```{r}
+mean_data = breast_dat %>% 
+  group_by(diagnosis) %>% 
+  summarise(across(radius_mean: fractal_dimension_worst, ~ mean(.x, na.rm = TRUE)))
+```
+
+```{r}
+log_model = glm(diagnosis ~ ., family = binomial("logit"), data  = breast_dat[, -1], start = rep(0, 31))
 summary(log_model)
 ```
+
 
