@@ -70,10 +70,6 @@ ggcorrplot(corr, type = "upper")
 #ggcorrplot(corr_new, type = "upper", lab = TRUE)
 ```
 
-```{r}
-log_model = glm(diagnosis ~ ., family = binomial("logit"), data  = breast_dat[, -1], start = rep(0, 31))
-summary(log_model)
-```
 
 
 ## Newton-Raphson algorithm
@@ -313,9 +309,7 @@ max(mean)
 predict <- function(x, y, betavec) {
   theta <- x %*% betavec
   p <- exp(theta) / (1 + exp(theta))
-  y.pred <- ifelse(p > 0.5, 1, 0)
-  accuracy <- mean(y.pred == y_test)
-  return(accuracy)
+  auc <- auc(y, p)
 }
 ```
 
