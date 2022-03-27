@@ -2,7 +2,7 @@
 title: "logistic"
 author: "Xinran Sun, Haotian Wu, Lin Yang, Shengzhi Luo"
 date: "3/17/2022"
-output: github_document
+output: pdf_document
 ---
 
 
