@@ -28,7 +28,7 @@ breast_dat = read.csv("breast-cancer.csv") %>%
 #partition data into training and test data
 trainRows <- createDataPartition(y = breast_dat$diagnosis, p = 0.8, list = FALSE)
 breast_train <- breast_dat[trainRows, ]
-breast_test <-  breast_dat[-trainRows, ]
+breast_test <- breast_dat[-trainRows, ]
 
 head(breast_dat, 5)
 
@@ -48,7 +48,7 @@ stand_df = breast_dat %>%
   map_df(.x = ., standardize) #standardize
 
 X = stand_df #predictors
-y = as.vector(ifelse(breast_dat[,2] == "M", 1, 0))#response
+y = breast_dat[,2]#response
 ```
 
 ## check collinearity
@@ -58,20 +58,41 @@ corr = stand_df %>%
   cor()
 
 ggcorrplot(corr, type = "upper")
+```
 
-#X = stand_df %>% 
-  #select(radius_mean, texture_mean, smoothness_mean, compactness_mean,
-         #symmetry_mean, fractal_dimension_mean, radius_se, texture_se,
-         #smoothness_se, concavity_se, symmetry_se)
+# feature plot
 
-#corr_new = X %>% cor()
-#corr_new
+```{r}
+data = cbind(y,X)
 
-#ggcorrplot(corr_new, type = "upper", lab = TRUE)
+featurePlot(x = data[, 2:11],
+            y = factor(data$y),
+            plot = "pairs",
+            auto.key = list(columns = 2)
+)
+
+featurePlot(x = data[, 12:21],
+            y = factor(data$y),
+            plot = "pairs",
+            auto.key = list(columns = 2)
+)
+
+featurePlot(x = data[, 22:31],
+            y = factor(data$y),
+            plot = "pairs",
+            auto.key = list(columns = 2)
+)
 ```
 
 ```{r}
-log_model = glm(diagnosis ~ ., family = binomial("logit"), data  = breast_dat[, -1], start = rep(0, 31))
+mean_data = breast_dat %>% 
+  group_by(diagnosis) %>% 
+  summarise(across(radius_mean: fractal_dimension_worst, ~ mean(.x, na.rm = TRUE)))
+mean_data
+```
+
+```{r}
+log_model = glm(diagnosis ~ ., family = binomial("logit"), data  = breast_train, start = rep(0, 31))
 summary(log_model)
 ```
 
@@ -310,12 +331,23 @@ max(mean)
 
 ```{r}
 #prediction performance function
-predict <- function(x, y, betavec) {
+predict <- function(x, y, betavec, beta0) {
   theta <- x %*% betavec
   p <- exp(theta) / (1 + exp(theta))
   y.pred <- ifelse(p > 0.5, 1, 0)
+  y.pred[is.na(y.pred)] <- 1
   accuracy <- mean(y.pred == y_test)
   return(accuracy)
 }
+```
+
+```{r}
+x_test = x_test %>% 
+  add_column(intercept = 1) %>% 
+  relocate(intercept) %>% 
+  as.matrix()
+y_test = as.matrix(y_test)
+beta = as.vector(log_model$coefficients)
+predict(x_test, y_test, beta)
 ```
 
