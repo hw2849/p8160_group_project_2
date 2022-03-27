@@ -19,26 +19,10 @@ library(MASS)
 ## data import and data clean
 ```{r}
 #load the data
-breast_dat = read_csv("breast-cancer.csv") %>% 
+breast_dat = read.csv("breast-cancer.csv") %>% 
   janitor::clean_names() %>% 
-  select(-33) %>% #drop NA column
-  add_row(id = 92751, diagnosis = "B", radius_mean = 7.76, texture_mean = 24.54,
-          perimeter_mean = 47.92, area_mean = 181, smoothness_mean = 0.05263,
-          compactness_mean = 0.04362, concavity_mean = 0, 
-          concave_points_mean = 0, symmetry_mean = 0.1587,
-          fractal_dimension_mean = 0.05884, radius_se = 0.3857, 
-          texture_se = 1.428, perimeter_se = 2.548, area_se = 19.15,
-          smoothness_se = 0.007189, compactness_se = 0.00466, concavity_se = 0,
-          concave_points_se = 0, symmetry_se = 0.02676, 
-          fractal_dimension_se = 0.002783, radius_worst = 9.456, 
-          texture_worst = 30.37, perimeter_worst = 59.16, area_worst = 268.6,
-          smoothness_worst = 0.08996, compactness_worst = 0.06444,
-          concavity_worst = 0, concave_points_worst = 0, 
-          symmetry_worst = 0.2871, fractal_dimension_worst = 0.07039) %>% 
-  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0)) %>% 
-  select(-1)
-  #add missing row
-
+  dplyr::select(-1, -33) %>% #drop NA column
+  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0)) 
 
 head(breast_dat, 5)
 
@@ -93,76 +77,69 @@ summary(log_model)
 ## logistic stuff 
 
 logisticstuff = function(dat, betavec){
-  x = as.matrix(cbind(rep(1, nrow(dat)), dat[, 2:31]))
-  y = as.matrix(dat[1])
-# print(x)
-  theta = x %*% betavec
-  #print(theta)
-  p = exp(theta) / (1 + exp(theta))
-  #print(p)
   
-#  u = x %*% betavec
+  x = dat[, -1] %>% as.matrix()
+  x = cbind(rep(1, nrow(x)), scale(x))
+  y = as.matrix(dat[, 1])
+
+  theta = x %*% betavec
+  p = exp(theta) / (1 + exp(theta))
+  
   loglik = sum(y * theta - log(1 + exp(theta)))
-  #print(loglik)'
-  #print(t(x))
-  #print(dat[1] - p)
+
   grad = t(x) %*% (y - p) # gradient
-  w = p * (1 - p)
-  w = diag(as.vector(w), nrow = nrow(w))
-  hess = -t(x) %*% w %*% x # hessian matrix
+  
+ # w = p * (1 - p)
+ # w = diag(as.vector(w), nrow = nrow(w))
+ # print(w)
+  hess = -(t(x) %*% diag(c(p*(1-p))) %*% x) # hessian matrix
   
   return(list(loglik = loglik, grad = grad, hess = hess))
 
 }
 
-#test = logisticstuff(breast_dat, betavec = beta)
-#test
+beta = rep(1, 31) 
+test = logisticstuff(breast_dat, betavec = beta)
+test$loglik
+```
 
 
-## NewtonRaphson
-newtonraphson = function(dat, func, start, tol = 10^-8, maxiter = 200){
+```{r haotian lin}
+
+newtonraphson = function(dat, func, start, tol = 1e-8, maxiter = 100){
   i = 0
   curbeta = start
   stuff = func(dat, curbeta)
-  #print(solve(stuff$hess))
   res = c(0, stuff$loglik, curbeta)
   prevloglik = -Inf
-  
+   
   while (i < maxiter && abs(stuff$loglik - prevloglik) > tol) {
     i = i + 1
     prevloglik = stuff$loglik
     prev = curbeta
-    curbeta = prev - solve(stuff$hess - 100 * diag(31)) %*% stuff$grad
-  #  print(stuff$hess)
+    curbeta = prev - solve(stuff$hess) %*% stuff$grad
     stuff = func(dat, curbeta)
-    
+
+    #redirection
     j = 1
     while (stuff$loglik < prevloglik) {
+      
+      if (!all(eigen(stuff$hess)$values) < 0) {
+      #gamma = max(eigen(stuff$hess)$values)
+      new_hess = stuff$hess - diag(31)
+      curbeta = prev - solve(new_hess) %*% stuff$grad
+      }
+      else {
       j = j/2
-      curbeta = prev - j * solve(stuff$hess - 100 * diag(31)) %*% stuff$grad
-      stuff = func(dat, curbeta)
+      curbeta = prev - j * solve(stuff$hess) %*% stuff$grad
+      }
     }
     
-   # #redirection
-   # while (is.negative.definite(stuff$hess) == FALSE) {
-   #   stuff$hess = stuff$hess - 100 *diag(31)
-   # #}
-   # 
-   # k = 1 #halfstep
-   # while (prevloglik > stuff$loglik) {
-   #       halfstep = 1/(2^k)
-   #       curbeta = prev - halfstep * solve(stuff$hess) %*% stuff$grad
-   #       stuff = func(dat, curbeta)
-   #       k = k + 1
-   # }
-   #
+    stuff = func(dat, curbeta)
     res = rbind(res, c(i, stuff$loglik, curbeta))
   }
   return(res)
 }
 
-beta = rep(0.001, 31) 
 res = newtonraphson(breast_dat, logisticstuff, beta)
 ```
-
-
