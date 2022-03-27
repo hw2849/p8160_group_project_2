@@ -1,14 +1,14 @@
 ---
-title: "logistics"
-author: "Xinran Sun"
+title: "logistic"
+author: "Xinran Sun, Haotian Wu, Lin Yang, Shengzhi Luo"
 date: "3/17/2022"
-output: html_document
-editor_options: 
-  chunk_output_type: console
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
 library(tidyverse)
 library(caret)
 library(ggcorrplot)
@@ -65,6 +65,14 @@ X = stand_df #predictors
 y = as.vector(ifelse(breast_dat[,2] == "M", 1, 0))#response
 ```
 
+```{r}
+x_train <- breast_train[2:20] #predictors
+y_train <- breast_train[1] #response
+x_train_stan <- cbind(rep(1, nrow(x_train)), scale(x_train))
+
+x_test <- breast_test[2:20]
+x_test_stan <- cbind(rep(1, nrow(x_test)), scale(x_test))
+```
 
 
 ## Full logistic model
@@ -88,88 +96,79 @@ auc_full
 ```{r haotian lin}
 ## logistic stuff 
 
-logisticstuff = function(dat, betavec){
-  
-  x = dat[, -1] %>% as.matrix()
-  x = cbind(rep(1, nrow(x)), scale(x))
-  y = as.matrix(dat[, 1])
-
-  theta = x %*% betavec
-  p = exp(theta) / (1 + exp(theta))
-  
-  loglik = sum(y * theta - log(1 + exp(theta)))
-
-  grad = t(x) %*% (y - p) # gradient
-  
- # w = p * (1 - p)
- # w = diag(as.vector(w), nrow = nrow(w))
- # print(w)
-  hess = -(t(x) %*% diag(c(p*(1-p))) %*% x) # hessian matrix
-  
-  return(list(loglik = loglik, grad = grad, hess = hess))
-
-}
-
-beta = rep(1, 20) 
-test = logisticstuff(breast_train, betavec = beta)
-test$loglik
+#logisticstuff = function(dat, betavec){
+#  
+#  x = dat[, -1] %>% as.matrix()
+#  x = cbind(rep(1, nrow(x)), scale(x))
+#  y = as.matrix(dat[, 1])
+#
+#  theta = x %*% betavec
+#  p = exp(theta) / (1 + exp(theta))
+#  
+#  loglik = sum(y * theta - log(1 + exp(theta)))
+#
+#  grad = t(x) %*% (y - p) # gradient
+#  
+# # w = p * (1 - p)
+# # w = diag(as.vector(w), nrow = nrow(w))
+# # print(w)
+#  hess = -(t(x) %*% diag(c(p*(1-p))) %*% x) # hessian matrix
+#  
+#  return(list(loglik = loglik, grad = grad, hess = hess))
+#
+#}
+#
+#beta = rep(1, 20) 
+#test = logisticstuff(breast_train, betavec = beta)
+#test$loglik
 ```
 
 
 ```{r haotian lin}
-
-newtonraphson = function(dat, func, start, tol = 1e-10, maxiter = 200){
-  i = 0
-  curbeta = start
-  stuff = func(dat, curbeta)
-  res = c(0, stuff$loglik, curbeta)
-  prevloglik = -Inf
-   
-  while (i < maxiter && abs(stuff$loglik - prevloglik) > tol) {
-    i = i + 1
-    prevloglik = stuff$loglik
-    prev = curbeta
-    curbeta = prev - solve(stuff$hess) %*% stuff$grad
-    stuff = func(dat, curbeta)
-
-    #redirection
-    j = 1
-    while (stuff$loglik < prevloglik) {
-      
-  
-      if (!all(eigen(stuff$hess)$values) < 0) {
-      #gamma = max(eigen(stuff$hess)$values)
-      new_hess = stuff$hess - 0.1*diag(20)
-      curbeta = prev - solve(new_hess) %*% stuff$grad
-      }
-      else {
-      j = j/2
-      curbeta = prev - j * solve(stuff$hess) %*% stuff$grad
-      }
-      
-    }
-    
-    stuff = func(dat, curbeta)
-    res = rbind(res, c(i, stuff$loglik, curbeta))
-  }
-  return(res)
-}
-
-res = newtonraphson(breast_train, logisticstuff, beta)
+#
+#newtonraphson = function(dat, func, start, tol = 1e-10, maxiter = 200){
+#  i = 0
+#  curbeta = start
+#  stuff = func(dat, curbeta)
+#  res = c(0, stuff$loglik, curbeta)
+#  prevloglik = -Inf
+#   
+#  while (i < maxiter && abs(stuff$loglik - prevloglik) > tol) {
+#    i = i + 1
+#    prevloglik = stuff$loglik
+#    prev = curbeta
+#    curbeta = prev - solve(stuff$hess) %*% stuff$grad
+#    stuff = func(dat, curbeta)
+#
+#    #redirection
+#    j = 1
+#    while (stuff$loglik < prevloglik) {
+#      
+#  
+#      if (!all(eigen(stuff$hess)$values) < 0) {
+#      #gamma = max(eigen(stuff$hess)$values)
+#      new_hess = stuff$hess - 0.1*diag(20)
+#      curbeta = prev - solve(new_hess) %*% stuff$grad
+#      }
+#      else {
+#      j = j/2
+#      curbeta = prev - j * solve(stuff$hess) %*% stuff$grad
+#      }
+#      
+#    }
+#    
+#    stuff = func(dat, curbeta)
+#    res = rbind(res, c(i, stuff$loglik, curbeta))
+#  }
+#  return(res)
+#}
+#
+#res = newtonraphson(breast_train, logisticstuff, beta)
 ```
 
 
 
 ## coordinate-wise optimization of a logistic-lasso model
-
-```{r}
-x_train <- breast_train[2:20] #predictors
-y_train <- breast_train[1] #response
-x_train_stan <- cbind(rep(1, nrow(x_train)), scale(x_train))
-
-x_test <- breast_test[2:20]
-y_test <- breast_test[1]
-```
 
 
 ```{r}
@@ -249,7 +248,7 @@ pathwise <- function(x, y, lambda) {
 }
 
 pathwise_sol <- pathwise(x_train_stan, y_train, lambda_seq2)
-pathwise_sol
+pathwise_sol %>% knitr::kable()
 ```
 
 
@@ -306,19 +305,47 @@ cv = function(data, lambda) {
 
 cv_test = cv(data = breast_train, lambda_seq2)
 
-lll <- as.data.frame(cv_test) #colnames(c("auc1", "auc2", "auc3", "auc4", "auc5"))
-colnames(lll) <- c("res", "auc1", "auc2", "auc3", "auc4", "auc5")
-lll<-lll %>% dplyr::select(-1)
-mean <- rowMeans(lll)
-max(mean)
+cv_res <- as.data.frame(cv_test) #colnames(c("auc1", "auc2", "auc3", "auc4", "auc5"))
+colnames(cv_res) <- c("res", "auc1", "auc2", "auc3", "auc4", "auc5")
+cv_lambda <- cv_res[1]
+mean_auc <- cv_res %>% dplyr::select(-1) %>% rowMeans()
+cv_auc <- cbind(cv_lambda, mean_auc)
+maxauc <- max(cv_auc$mean_auc)
+bestlambda <- cv_auc[which(cv_auc$mean_auc == maxauc ),]$res
+cv_auc %>% 
+  ggplot(x = res, y = mean_auc ) +
+  geom_line(aes(x = res, y = mean_auc), col = "blue") +
+  geom_vline(xintercept = bestlambda, linetype = "dashed", col = "red") +
+  labs(title = "Mean AUC vs. Lambda",
+       x = "Lambda",
+       y = "Mean AUC")
 ```
 
+
+## Compare full model and lasso model
 ```{r}
+#corresponding betas of best lambda
+lasso_beta <- pathwise_sol[which(pathwise_sol$lambda == bestlambda ),][2:21] %>% as.numeric()
+
 #prediction performance function
 predict <- function(x, y, betavec) {
   theta <- x %*% betavec
   p <- exp(theta) / (1 + exp(theta))
   auc <- auc(y, p)
 }
+
+auc_lasso <- predict(x_test_stan, y_test, lasso_beta)
+auc_lasso
+
+cbind(auc_full, auc_lasso) %>% knitr::kable()
+
+```
+
+
+```{r}
+#coefficients of full and lasso models
+glm_beta <- glm.fit$coefficients %>% as.vector()
+coefnames <- rownames(coef(summary(glm.fit)))
+cbind(coefnames, glm_beta, lasso_beta) %>% knitr::kable()
 ```
 
