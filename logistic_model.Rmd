@@ -182,7 +182,7 @@ pathwise <- function(x, y, lambda) {
 }
 
 pathwise_sol <- pathwise(x_train_stan, y_train, lambda_seq2)
-pathwise_sol %>% knitr::kable()
+round(pathwise_sol, 2) %>% knitr::kable()
 ```
 
 
