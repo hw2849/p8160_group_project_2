@@ -20,27 +20,10 @@ library(glmnet)
 ## data import and data clean
 ```{r}
 #load the data
-breast_dat = read.csv("breast-cancer.csv")[, -33] %>% 
+breast_dat = read.csv("breast-cancer.csv") %>% 
   janitor::clean_names() %>% 
-<<<<<<< HEAD
   dplyr::select(-1, -33) %>% #drop id and NA columns
-  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0)) %>% 
-  add_row(diagnosis = 0, radius_mean = 7.76, texture_mean = 24.54,
-          perimeter_mean = 47.92, area_mean = 181, smoothness_mean = 0.05263,
-          compactness_mean = 0.04362, concavity_mean = 0, 
-          concave_points_mean = 0, symmetry_mean = 0.1587,
-          fractal_dimension_mean = 0.05884, radius_se = 0.3857, 
-          texture_se = 1.428, perimeter_se = 2.548, area_se = 19.15,
-          smoothness_se = 0.007189, compactness_se = 0.00466, concavity_se = 0,
-          concave_points_se = 0, symmetry_se = 0.02676, 
-          fractal_dimension_se = 0.002783, radius_worst = 9.456, 
-          texture_worst = 30.37, perimeter_worst = 59.16, area_worst = 268.6,
-          smoothness_worst = 0.08996, compactness_worst = 0.06444,
-          concavity_worst = 0, concave_points_worst = 0, 
-          symmetry_worst = 0.2871, fractal_dimension_worst = 0.07039)
-=======
   mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0))
->>>>>>> b4b7a99ab1a5903eef4004a888237bb54387d054
 
 #partition data into training and test data
 trainRows <- createDataPartition(y = breast_dat$diagnosis, p = 0.8, list = FALSE)
@@ -177,6 +160,7 @@ res = newtonraphson(breast_dat, logisticstuff, beta)
 ```{r}
 x_train <- breast_train[2:31] #predictors
 y_train <- breast_train[1] #response
+x_train_stan <- cbind(rep(1, nrow(x_train)), scale(x_train))
 
 x_test <- breast_test[2:31]
 y_test <- breast_test[1]
@@ -227,8 +211,6 @@ coordwise_lasso <- function(lambda, x, y, betastart, tol = exp(-10), maxiter = 1
   }
   return(res)
 }
-
-x_train_stan <- cbind(rep(1, nrow(x_train)), scale(x_train))
 #coordwise_res <- coordwise_lasso(lambda = 0.018, x_stan, y, betastart = rep(0, 31))
 #coordwise_res[nrow(coordwise_res), ]
 ```
@@ -237,8 +219,7 @@ We need to calculate lambdamax first to define a sequence of lambda.
 ```{r}
 x.matrix <- scale(x_train) %>% as.matrix()
 y.matrix <- as.matrix(y_train)
-lambdamax <- max(abs(t(x.matrix) %*% y.matrix))
-lambdamax <- lambdamax/nrow(y.matrix)
+lambdamax <- max(abs(t(x.matrix) %*% y.matrix)) / nrow(y.matrix)
 lambda_seq <- exp(seq(log(lambdamax), -4, length = 50))
 ```
 
@@ -299,17 +280,17 @@ cv = function(data, lambda) {
     path_sol <- pathwise(x = x_train_stan,
                          y = y_train,
                          lambda = lambda)
-    mean <- vector()
+    accuracy <- vector()
     for (j in 1:length(lambda)) {
       curbeta <- as.numeric(path_sol[j, 2:32])
       theta <- x_test_stan %*% curbeta
       p <- exp(theta) / (1 + exp(theta)) 
       #auc[j] <- auc(y_test, p)
       y.pred <- ifelse(p > 0.5, 1, 0)
-      mean[j] <- mean(y.pred == y_test)
+      accuracy[j] <- mean(y.pred == y_test)
     }
-    print(mean)
-    res <- cbind(res, mean)
+    print(accuracy)
+    res <- cbind(res, accuracy)
     print(res)
   }
   return(res)
@@ -328,28 +309,13 @@ max(mean)
 ```
 
 ```{r}
-beta <- pathwise_sol[49, 2:32]
-theta <- x_train_stan %*% t(beta)
-p <- exp(theta) / (1 + exp(theta))
-y.pred <- ifelse(p > 0.5, 1, 0)
-mean(y.pred == y_train)
-auc(y_train, p)
-
-y_train <- breast_train %>% mutate(diagnosis = factor(diagnosis))
-y_train <- y_train$diagnosis
-```
-
-
-
-
-
-```{r}
 #prediction performance function
-lasso_predict <- function(x, y, betavec) {
+predict <- function(x, y, betavec) {
   theta <- x %*% betavec
   p <- exp(theta) / (1 + exp(theta))
-  auc <- auc(y, p)
-  return(auc)
+  y.pred <- ifelse(p > 0.5, 1, 0)
+  accuracy <- mean(y.pred == y_test)
+  return(accuracy)
 }
 ```
 
