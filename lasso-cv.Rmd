@@ -324,3 +324,18 @@ model.glmn$bestTune
 coef(model.glmn$finalModel, model.glmn$bestTune$lambda)
 ```
 
+
+
+```{r}
+#glm.fit <- glm(diagnosis ~ ., 
+#               data = breast_dat, 
+#               subset = trainRows, 
+#               family = binomial(link = "logit"))
+#summary(glm.fit)
+#
+#pred <- predict(glm.fit, newdata = breast_test, type = "response")
+#y_test <- factor(breast_test$diagnosis)
+#auc_full <- auc(y_test, pred)
+#auc_full
+```
+

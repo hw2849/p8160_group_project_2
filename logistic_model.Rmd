@@ -331,7 +331,7 @@ max(mean)
 
 ```{r}
 #prediction performance function
-predict <- function(x, y, betavec, beta0) {
+predict <- function(x, y, betavec) {
   theta <- x %*% betavec
   p <- exp(theta) / (1 + exp(theta))
   y.pred <- ifelse(p > 0.5, 1, 0)
