@@ -12,7 +12,7 @@ A mammogram is an X-ray image of breast tissue. It can help save lives because i
 
 # Dataset
 
-Our data set consistes of 569 rows, with 357 benign and 212 malignant. We denote 0 for benign and 1 for malignant. We also have 30 columns representing the features of the tissue images. They include the mean, standard deviation, and the largest values of the distributions of the following 10 features computed for the cell nuclei:
+Our data set consists of 569 rows, with 357 benign and 212 malignant. We denote 0 for benign and 1 for malignant. We also have 30 columns representing the features of the tissue images. They include the mean, standard deviation, and the largest values of the distributions of the following 10 features computed for the cell nuclei:
 \begin{itemize}
 \item radius (mean of distances from center to points on the perimeter)
 \item texture (standard deviation of gray-scale values)
