@@ -67,10 +67,8 @@ To obtain a path of solutions with a descending sequence of $\lambda$’s in a l
 \begin{itemize}
 \item Step 1: Find the smallest value $\lambda$ for which all the estimated $\beta$ are 0, defined as $\lambda_{max}$.
 \item Step 2: Define a fine sequence $\lambda_{max} \ge \lambda_1 \ge ... \lambda_{min} \ge 0$.
-\item Step 3: Define a quadratic approximated objective function \[L(\beta_0, \textbf{$\beta$}, \lambda)\] for $\lambda_k$ using the estimated parameter at $\lambda_{k-1}$ ($\lambda_{k-1} > \lambda_k$).
-\item Step 4: Run coordinate descendent algorithm to find the optimization defined in Step 3.
+\item Step 3: To estimate coefficients for the current $\lambda_{k+1}$, implement coordinate descent algorithm using the computed coefficients of the previous $\lambda_{k}$ (warm start) as coefficient start values. 
 \end{itemize}
-
 
 # Results
 
