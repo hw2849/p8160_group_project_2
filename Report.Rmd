@@ -28,10 +28,11 @@ Our data set consistes of 569 rows, with 357 benign and 212 malignant. We denote
 
 ### EDA
 
-We built three feature plots to analyze the relationship between variables. 
-The mean variables was plotted in first figure. From this plot, we can see that there are strong correlations between radius mean with perimeter mean and between radius mean with area mean. Perimeter mean and area mean also have strong correlation. Similarly, for the largest values, there are strong correlations between radius, perimeter and area. The correlations are reasonable because perimeter and area are calculated based on radius. 
+Before building the model, we want have a close look at the dataset. Therefore, we first examine the correlation between variables. The squares with dark color in the correlation plot has strong correlation with each other. We can see there is very strong correlation between radius, perimeter and area across mean, standard deviation, and the largest values. We decided to drop some variables with correlation larger than 0.7. The variables we dropped are perimeter_mean, area_mean, compactness_mean, concave_points_mean, perimeter_se, area_se, radius_worst, texture_worst, perimeter_worst, area_worst, and concavity_worst (11 variables).
 
-For benign cases, all of the 10 features' means and largest values are smaller than malignant cases. 
+After that, we built feature plot to analyze the relationship between variables after removing the variables with high correlation. From this plot, we can see that there are no strong relationship between variables after removing. We also found that the points for benign tissues are often locate at left-bottom side, which indicates the benign tissues usually have smaller feature values compared to malignant tissues.
+
+We also calculated the mean of each variables to compare values between benign and malignant cases. According to the average values of the mean of each feature, we can find that benign tissues have smaller values compared to malignant tissues, except for fractal dimension. There is no general pattern for the average values of the standard deviations. Based the average values of the largest value of each feature, we can find that benign tissues have smaller largest values compared to malignant tissues.
 
 # Methods
 
@@ -83,21 +84,35 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 library(tidyverse)
 library(caret)
 library(ggcorrplot)
+library(MASS)
+library(pROC)
+library(glmnet)
 ```
 
 ## data import and data clean
+
 ```{r}
 #load the data
-breast_dat = read.csv("breast-cancer.csv")[, -33] %>% 
+breast = read.csv("breast-cancer.csv") %>% 
   janitor::clean_names() %>% 
+  dplyr::select(-1, -33) %>% #drop id and NA columns
   mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0))
-
-
+#check collinearity
+corr = breast[2:31] %>% 
+  cor()
+ggcorrplot(corr, type = "upper", tl.cex = 8)
+#remove some highly correlated variables
+breast_dat <- breast %>% dplyr::select(-area_se, -perimeter_se, -area_worst, -perimeter_mean, -perimeter_worst, -area_mean, -radius_worst, -concave_points_mean, -texture_worst, -compactness_mean, -concavity_worst)
+corr1 = breast_dat[2:20] %>% 
+  cor()
+ggcorrplot(corr1, type = "upper", tl.cex = 8)
+#partition data into training and test data
+trainRows <- createDataPartition(y = breast_dat$diagnosis, p = 0.8, list = FALSE)
+breast_train <- breast_dat[trainRows, ]
+breast_test <-  breast_dat[-trainRows, ]
 head(breast_dat, 5)
-
 r = dim(breast_dat)[1] #row number
 c = dim(breast_dat)[2] #column number
-
 var_names = names(breast_dat)[-c(1,2)] #variable names
   
 standardize = function(col) {
@@ -105,52 +120,31 @@ standardize = function(col) {
   sd = sd(col)
   return((col - mean)/sd)
 }
-
 stand_df = breast_dat %>% 
   dplyr::select(radius_mean:fractal_dimension_worst) %>% 
   map_df(.x = ., standardize) #standardize
-
 X = stand_df #predictors
-y = as.vector(ifelse(breast_dat[,2] == "M", 1, 0))#response
+y = breast_dat[,1]#response
 ```
 
-## check collinearity
-
-```{r}
-corr = stand_df %>% 
-  cor()
-
-ggcorrplot(corr, type = "upper")
-
-#X = stand_df %>% 
-  #select(radius_mean, texture_mean, smoothness_mean, compactness_mean,
-         #symmetry_mean, fractal_dimension_mean, radius_se, texture_se,
-         #smoothness_se, concavity_se, symmetry_se)
-
-#corr_new = X %>% cor()
-#corr_new
-
-#ggcorrplot(corr_new, type = "upper", lab = TRUE)
-```
-
-# feature plot
+# Feature plot
 
 ```{r}
 data = cbind(y,X)
 
-featurePlot(x = data[, 2:11],
+featurePlot(x = data[, 2:7],
             y = factor(data$y),
             plot = "pairs",
             auto.key = list(columns = 2)
 )
 
-featurePlot(x = data[, 12:21],
+featurePlot(x = data[, 8:15],
             y = factor(data$y),
             plot = "pairs",
             auto.key = list(columns = 2)
 )
 
-featurePlot(x = data[, 22:31],
+featurePlot(x = data[, 16:20],
             y = factor(data$y),
             plot = "pairs",
             auto.key = list(columns = 2)
@@ -161,11 +155,18 @@ featurePlot(x = data[, 22:31],
 mean_data = breast_dat %>% 
   group_by(diagnosis) %>% 
   summarise(across(radius_mean: fractal_dimension_worst, ~ mean(.x, na.rm = TRUE)))
+mean_data
 ```
 
+## Full logistic model
 ```{r}
-log_model = glm(diagnosis ~ ., family = binomial("logit"), data  = breast_dat[, -1], start = rep(0, 31))
-summary(log_model)
+glm.fit <- glm(diagnosis ~ ., 
+               data = breast_dat, 
+               subset = trainRows, 
+               family = binomial(link = "logit"))
+summary(glm.fit)
+pred <- predict(glm.fit, newdata = breast_test, type = "response")
+y_test <- factor(breast_test$diagnosis)
+auc_full <- auc(y_test, pred)
+auc_full
 ```
-
-
