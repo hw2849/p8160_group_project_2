@@ -142,39 +142,38 @@ test$loglik
 ```
 
 ```{r haotian lin}
-newtonraphson <- function(dat, func, start, tol=1e-10, maxiter = 20000) {
-  i <- 0
-  curbeta <- start
-  stuff <- func(dat, curbeta)
-  res <- c(0, stuff$loglik, curbeta)
-  prevloglik <- -Inf      # To make sure it iterates
-  while(i < maxiter && abs(stuff$loglik - prevloglik) > tol) {
-    i <- i + 1
-    prevloglik <- stuff$loglik
-    prev <- curbeta
-    curbeta <- prev - solve(stuff$hess) %*% stuff$grad
-    prevstuff <- stuff
-    stuff <- func(dat, curbeta)        # log-lik, gradient, Hessian
-    gamma <- 0.01
-    
-    while(max(eigen(stuff$hess)$value)>0){
-      stuff$Hess = stuff$hess - diag(20) * gamma
-      gamma <- gamma + 0.01
-    }
-    
-    if (stuff$loglik > prevloglik)
-    {
-        res <- rbind(res, c(i, stuff$loglik, curbeta))# Add current values to results matrix
-    } else 
-    {
-      lambda <- 1
-      while (stuff$loglik < prevloglik) {
-        lambda <- lambda / 2 # step-halving
-        curbeta <- prev - lambda * solve(prevstuff$hess) %*% prevstuff$grad
-        stuff <- func(dat, curbeta)        # log-lik, gradient, Hessian
+newtonraphson = function(dat, func, start, tol = 1e-10, maxiter = 200){
+  i = 0
+  curbeta = start
+  stuff = func(dat, curbeta)
+  res = c(0, stuff$loglik, curbeta)
+  prevloglik = -Inf
+   
+  while (i < maxiter && abs(stuff$loglik - prevloglik) > tol) {
+    i = i + 1
+    prevloglik = stuff$loglik
+    prev = curbeta
+    curbeta = prev - solve(stuff$hess) %*% stuff$grad
+    stuff = func(dat, curbeta)
+    #redirection
+    j = 1
+    while (stuff$loglik < prevloglik) {
+      
+  
+      if (!all(eigen(stuff$hess)$values) < 0) {
+      #gamma = max(eigen(stuff$hess)$values)
+      new_hess = stuff$hess - 0.1*diag(20)
+      curbeta = prev - solve(new_hess) %*% stuff$grad
       }
-        res <- rbind(res, c(i, stuff$loglik, curbeta))# Add current values to results matrix
+      else {
+      j = j/2
+      curbeta = prev - j * solve(stuff$hess) %*% stuff$grad
+      }
+      
     }
+    
+    stuff = func(dat, curbeta)
+    res = rbind(res, c(i, stuff$loglik, curbeta))
   }
   return(res)
 }
