@@ -30,32 +30,23 @@ breast = read.csv("breast-cancer.csv") %>%
   janitor::clean_names() %>% 
   dplyr::select(-1, -33) %>% #drop id and NA columns
   mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0))
-
 #check collinearity
 corr = breast[2:31] %>% 
   cor()
-
 ggcorrplot(corr, type = "upper", tl.cex = 8)
-
 #remove some highly correlated variables
 breast_dat <- breast %>% dplyr::select(-area_se, -perimeter_se, -area_worst, -perimeter_mean, -perimeter_worst, -area_mean, -radius_worst, -concave_points_mean, -texture_worst, -compactness_mean, -concavity_worst)
-
 corr1 = breast_dat[2:20] %>% 
   cor()
-
 ggcorrplot(corr1, type = "upper", tl.cex = 8)
-
 #partition data into training and test data
 set.seed(2022)
 trainRows <- createDataPartition(y = breast_dat$diagnosis, p = 0.8, list = FALSE)
 breast_train <- breast_dat[trainRows, ]
 breast_test <-  breast_dat[-trainRows, ]
-
 head(breast_dat, 5)
-
 r = dim(breast_dat)[1] #row number
 c = dim(breast_dat)[2] #column number
-
 var_names = names(breast_dat)[-c(1,2)] #variable names
   
 standardize = function(col) {
@@ -63,13 +54,11 @@ standardize = function(col) {
   sd = sd(col)
   return((col - mean)/sd)
 }
-
 stand_df = breast_dat %>% 
   dplyr::select(radius_mean:fractal_dimension_worst) %>% 
   map_df(.x = ., standardize) #standardize
-
 X = stand_df #predictors
-y = as.vector(ifelse(breast_dat[,2] == "M", 1, 0))#response
+y = breast_dat[,1]#response
 ```
 
 ```{r}
@@ -81,6 +70,36 @@ x_test <- breast_test[2:20]
 x_test_stan <- cbind(rep(1, nrow(x_test)), scale(x_test))
 ```
 
+# feature plot
+
+```{r}
+data = cbind(y,X)
+
+featurePlot(x = data[, 2:7],
+            y = factor(data$y),
+            plot = "pairs",
+            auto.key = list(columns = 2)
+)
+
+featurePlot(x = data[, 8:15],
+            y = factor(data$y),
+            plot = "pairs",
+            auto.key = list(columns = 2)
+)
+
+featurePlot(x = data[, 16:20],
+            y = factor(data$y),
+            plot = "pairs",
+            auto.key = list(columns = 2)
+)
+```
+
+```{r}
+mean_data = breast_dat %>% 
+  group_by(diagnosis) %>% 
+  summarise(across(radius_mean: fractal_dimension_worst, ~ mean(.x, na.rm = TRUE)))
+mean_data
+```
 
 ## Full logistic model
 ```{r}
@@ -88,10 +107,14 @@ glm.fit <- glm(diagnosis ~ .,
                data = breast_dat, 
                subset = trainRows, 
                family = binomial(link = "logit"))
+<<<<<<< HEAD
 summary(glm.fit)$coeffcients
 glm.fit$coefficients
 coef(glm.fit) %>% knitr::kable()
 
+=======
+summary(glm.fit)
+>>>>>>> 6bf0ee4fb14eb8da1f68df1aefa8e714c6482663
 pred <- predict(glm.fit, newdata = breast_test, type = "response")
 y_test <- factor(breast_test$diagnosis)
 auc_full <- auc(y_test, pred)
@@ -99,11 +122,130 @@ auc_full
 ```
 
 
+<<<<<<< HEAD
 
 
+=======
+## Newton-Raphson algorithm
+
+```{r}
+## logistic stuff 
+logisticstuff = function(dat, betavec){
+  
+  x = dat[, -1] %>% as.matrix()
+  x = cbind(rep(1, nrow(x)), scale(x))
+  y = as.matrix(dat[, 1])
+  theta = x %*% betavec
+  p = exp(theta) / (1 + exp(theta))
+  
+  loglik = sum(y * theta - log(1 + exp(theta)))
+  grad = t(x) %*% (y - p) # gradient
+  
+ # w = p * (1 - p)
+ # w = diag(as.vector(w), nrow = nrow(w))
+ # print(w)
+  hess = -(t(x) %*% diag(as.vector(p * (1 - p))) %*% x) # hessian matrix
+  
+  return(list(loglik = loglik, grad = grad, hess = hess))
+}
+beta = rep(1, 20) 
+test = logisticstuff(breast_train, betavec = beta)
+test$loglik
+```
+
+```{r haotian lin}
+newtonraphson = function(dat, func, start, tol = 1e-10, maxiter = 200){
+  i = 0
+  curbeta = start
+  stuff = func(dat, curbeta)
+  res = c(0, stuff$loglik, curbeta)
+  prevloglik = -Inf
+   
+  while (i < maxiter && abs(stuff$loglik - prevloglik) > tol && (!is.na(stuff$loglik)) ) {
+    i = i + 1
+    prevloglik = stuff$loglik
+    prev = curbeta
+<<<<<<< HEAD
+
+    curbeta  = prev - solve(stuff$hess) %*% stuff$grad
+    stuff = func(dat, curbeta) 
+    
+    eigen_vals = eigen(stuff$hess)
+    if(max(eigen_vals$values) <= 0 ){ # check neg def, if not change 
+      hess = stuff$hess
+    } else{ # if it is pos def then need to adjust 
+      hess = stuff$hess - (max(eigen_vals$values))*diag(nrow(stuff$hess))
+    } 
+    
+    curbeta  = prev - solve(stuff$hess) %*% stuff$grad
+    stuff = func(dat, curbeta) 
+    
+    j = 1
+    # half step
+      while (stuff$loglik < prevloglik && (!is.na(stuff$loglik)) ) {
+       # stuff <- func(dat, curbeta)
+        j  <- j / 2 
+        curbeta   <- prev - j * solve(stuff$hess) %*% stuff$grad
+        stuff <- func(dat, curbeta)
+      }
+=======
+    curbeta = prev - solve(stuff$hess) %*% stuff$grad
+    stuff = func(dat, curbeta)
+    #redirection
+    j = 1
+    while (stuff$loglik < prevloglik) {
+      
+  
+      if (!all(eigen(stuff$hess)$values) < 0) {
+      #gamma = max(eigen(stuff$hess)$values)
+      new_hess = stuff$hess - 0.1*diag(20)
+      curbeta = prev - solve(new_hess) %*% stuff$grad
+      }
+      else {
+      j = j/2
+      curbeta = prev - j * solve(stuff$hess) %*% stuff$grad
+      }
+      
+    }
+>>>>>>> b3100da05558fc9a2e36d58b1088af49803aadda
+    
+  #  #redirection
+  #  j = 1
+  #  while (stuff$loglik < prevloglik) {
+  #    
+  #    if (!all(eigen(stuff$hess)$values) < 0) {
+  #    #gamma = max(eigen(stuff$hess)$values)
+  #    new_hess = stuff$hess - diag(31)
+  #    curbeta = prev - solve(new_hess) %*% stuff$grad
+  #    }
+  #    else {
+  #    j = j/2
+  #    curbeta = prev - j * solve(stuff$hess) %*% stuff$grad
+  #    }
+  #  }
+  #  
+  #  stuff = func(dat, curbeta)
+    res = rbind(res, c(i, stuff$loglik, curbeta))
+  }
+  return(res)
+}
+res = newtonraphson(breast_train, logisticstuff, beta)
+```
+>>>>>>> 6bf0ee4fb14eb8da1f68df1aefa8e714c6482663
 
 ## coordinate-wise optimization of a logistic-lasso model
 
+<<<<<<< HEAD
+```{r}
+x_train <- breast_train[2:20] #predictors
+y_train <- breast_train[1] #response
+x_train_stan <- cbind(rep(1, nrow(x_train)), scale(x_train))
+x_test <- breast_test[2:20]
+y_test <- breast_test[1]
+```
+
+=======
+>>>>>>> 78ea447f5ee1bc4aea1da5196d417feacfb8a26c
 
 ```{r}
 #soft threshold
@@ -180,7 +322,6 @@ pathwise <- function(x, y, lambda) {
   }
   return(data.frame(cbind(lambda, betas)))
 }
-
 pathwise_sol <- pathwise(x_train_stan, y_train, lambda_seq2)
 round(pathwise_sol, 2) %>% knitr::kable()
 ```
@@ -189,7 +330,6 @@ round(pathwise_sol, 2) %>% knitr::kable()
 ## cross-validation
 ```{r}
 set.seed(2022)
-
 cv = function(data, lambda) {
   n <- nrow(data)
   data <- data[sample(n), ] #shuffle the data
@@ -236,8 +376,14 @@ cv = function(data, lambda) {
   #cv.auc.lambda <- rowMeans(mse)
   #return(cv.auc.lambda)
 }
-
 cv_test = cv(data = breast_train, lambda_seq2)
+<<<<<<< HEAD
+lll <- as.data.frame(cv_test) #colnames(c("auc1", "auc2", "auc3", "auc4", "auc5"))
+colnames(lll) <- c("res", "auc1", "auc2", "auc3", "auc4", "auc5")
+lll<-lll %>% dplyr::select(-1)
+mean <- rowMeans(lll)
+max(mean)
+=======
 
 cv_res <- as.data.frame(cv_test) #colnames(c("auc1", "auc2", "auc3", "auc4", "auc5"))
 colnames(cv_res) <- c("res", "auc1", "auc2", "auc3", "auc4", "auc5")
@@ -253,6 +399,7 @@ cv_auc %>%
   labs(title = "Mean AUC vs. Lambda",
        x = "Lambda",
        y = "Mean AUC")
+>>>>>>> 78ea447f5ee1bc4aea1da5196d417feacfb8a26c
 ```
 
 
@@ -267,6 +414,9 @@ predict <- function(x, y, betavec) {
   p <- exp(theta) / (1 + exp(theta))
   auc <- auc(y, p)
 }
+<<<<<<< HEAD
+```
+=======
 
 auc_lasso <- predict(x_test_stan, y_test, lasso_beta)
 auc_lasso
@@ -283,3 +433,4 @@ coefnames <- rownames(coef(summary(glm.fit)))
 cbind(coefnames, glm_beta, lasso_beta) %>% knitr::kable()
 ```
 
+>>>>>>> 78ea447f5ee1bc4aea1da5196d417feacfb8a26c
