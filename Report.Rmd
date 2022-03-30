@@ -1,7 +1,7 @@
 ---
 title: "Project 2: Breast Cancer Diagnosis"
-author: "Xinran Sun"
-date: "3/17/2022"
+author: "Shengzhi Luo, Xinran Sun, Haotian Wu, Lin Yang"
+date: "3/31/2022"
 header-includes:
    - \usepackage{amsmath}
 output: pdf_document
@@ -12,7 +12,7 @@ A mammogram is an X-ray image of breast tissue. It can help save lives because i
 
 # Dataset
 
-Our data set consistes of 569 rows, with 357 benign and 212 malignant. We denote 0 for benign and 1 for malignant. We also have 30 columns representing the features of the tissue images. They include the mean, standard deviation, and the largest values of the distributions of the following 10 features computed for the cell nuclei:
+Our data set consists of 569 rows, with 357 benign and 212 malignant. We denote 0 for benign and 1 for malignant. We also have 30 columns representing the features of the tissue images. They include the mean, standard deviation, and the largest values of the distributions of the following 10 features computed for the cell nuclei:
 \begin{itemize}
 \item radius (mean of distances from center to points on the perimeter)
 \item texture (standard deviation of gray-scale values)
@@ -26,17 +26,18 @@ Our data set consistes of 569 rows, with 357 benign and 212 malignant. We denote
 \item fractal dimension ("coastline approximation" - 1)
 \end{itemize}
 
-### EDA
+# EDA
 
-We built three feature plots to analyze the relationship between variables. 
-The mean variables was plotted in first figure. From this plot, we can see that there are strong correlations between radius mean with perimeter mean and between radius mean with area mean. Perimeter mean and area mean also have strong correlation. Similarly, for the largest values, there are strong correlations between radius, perimeter and area. The correlations are reasonable because perimeter and area are calculated based on radius. 
+Before building the model, we want have a close look at the dataset. Therefore, we first examine the correlation between variables. The squares with dark color in the correlation plot has strong correlation with each other. We can see there is very strong correlation between radius, perimeter and area across mean, standard deviation, and the largest values. We decided to drop some variables with correlation larger than 0.7. The variables we dropped are perimeter_mean, area_mean, compactness_mean, concave_points_mean, perimeter_se, area_se, radius_worst, texture_worst, perimeter_worst, area_worst, and concavity_worst (11 variables).
 
-For benign cases, all of the 10 features' means and largest values are smaller than malignant cases. 
+After that, we built feature plot to analyze the relationship between variables after removing the variables with high correlation. From this plot, we can see that there are no strong relationship between variables after removing. We also found that the points for benign tissues are often locate at left-bottom side, which indicates the benign tissues usually have smaller feature values compared to malignant tissues.
+
+We also calculated the mean of each variables to compare values between benign and malignant cases. According to the average values of the mean of each feature, we can find that benign tissues have smaller values compared to malignant tissues, except for fractal dimension. There is no general pattern for the average values of the standard deviations. Based the average values of the largest value of each feature, we can find that benign tissues have smaller largest values compared to malignant tissues.
 
 # Methods
 
 
-### Logistic Model
+### Logistic Regression Model
 
 Let \textit{y} be the vector with 569 binary response variable, \textit{X} be the $569 \times 30$ matrix with 30 numerical explanatory variables, and \textit{$\beta$} be the vector with 30 corresponding coefficients. We also have \textit{$\beta_0$} as the intercepts.
 
@@ -61,109 +62,71 @@ where $W = p_i(1-p_i)$.
 
 ### Newton-Raphson Algorithm
 
-### Path-wise Coordinate-wise Optimization Algorithm
-To obtain a path of solutions with a descending sequence of $\lambda$’s in a logistic-LASSO model, we can implement a path-wise coordinate-wise optimization algorithm which contains the following steps:
+### Path-wise Coordinate-wise Optimization Algorithm for Logistic-Lasso Model
+To obtain a path of coefficients for a descending sequence of tuning parameter $\lambda$, we need to develop a coordinate-wise descent algorithm estimating coefficients for a specific lambda.
+The logistic-lasso can be written as a penalized weighted least-squares problem:
+
+$$
+\min _{\left(\beta_{0}, \boldsymbol{\beta}_{1}\right)} L\left(\beta_{0}, \boldsymbol{\beta}_{1}, \lambda\right)=\left\{-\ell\left(\beta_{0}, \boldsymbol{\beta}_{1}\right)+\lambda \sum_{j=0}^{p}\left|\beta_{j}\right|\right\}
+$$
+
+When there are a large number of parameters, i.e., p is large, a coordinate-wise descent algorithm is required to optimize coefficients. The objective function is:
+
+$$
+f\left(\beta_{j}\right)=\frac{1}{2} \sum_{i=1}^{n}\left(y_{i}-\sum_{k \neq j} x_{i, k} \widetilde{\beta}_{k}-x_{i, j} \beta_{j}\right)^{2}+\gamma \sum_{k \neq j}\left|\widetilde{\beta}_{k}\right|+\gamma\left|\beta_{j}\right|
+$$
+
+Minimizing $f\left(\beta_{j}\right)$ w.r.t $\beta_{j}$ while having $\widetilde{\beta}_{k}$ fixed, we have weighted updates to update one coefficient at a time iteratively until the log-likelihood converges:
+
+$$
+\widetilde{\beta}_{j}(\lambda) \leftarrow \frac{S\left(\sum_{i} w_{i} x_{i, j}\left(y_{i}-\tilde{y}_{i}^{(-j)}\right), \lambda\right)}{\sum_{i} w_{i} x_{i, j}^{2}}
+$$
+
+where $\tilde{y}_{i}^{(-j)}=\sum_{k \neq j} x_{i, k} \widetilde{\beta}_{k}$. 
+
+If we apply Taylor expansion to the log-likelihood around "current estimates" $\left(\widetilde{\beta}_{0}, \tilde{\beta}_{1}\right)$, we have a quadratic approximation function to the log-likelihood $f\left(\beta_{0}, \boldsymbol{\beta}_{1}\right)$:
+
+$$
+f\left(\beta_{0}, \boldsymbol{\beta}_{1}\right) \approx \ell\left(\beta_{0}, \boldsymbol{\beta}_{1}\right)=-\frac{1}{2 n} \sum_{i=1}^{n} w_{i}\left(z_{i}-\beta_{0}-\mathbf{x}_{i}^{T} \boldsymbol{\beta}_{1}\right)^{2}+C\left(\widetilde{\beta}_{0}, \widetilde{\boldsymbol{\beta}}_{1}\right)
+$$
+where 
+$$
+z_{i}=\widetilde{\beta}_{0}+\mathbf{x}_{i}^{T} \widetilde{\boldsymbol{\beta}}_{1}+\frac{y_{i}-\widetilde{p}_{i}\left(\mathbf{x}_{i}\right)}{\widetilde{p}_{i}\left(\mathbf{x}_{i}\right)\left(1-\widetilde{p}_{i}\left(\mathbf{x}_{i}\right)\right)}
+$$
+$w_{i}$ is the working weight, $z_{i}$ is the working response, $p_{i}$ is the probability of malignant case estimated at current coefficients. This quadratic approximation function is used in the coordinate-wise descent algorithm.\
+\
+We then can develop a path-wise coordinate-wise optimization algorithm to get a path of solutions for a descending sequence of $\lambda$.
+
 \begin{itemize}
 \item Step 1: Find the smallest value $\lambda$ for which all the estimated $\beta$ are 0, defined as $\lambda_{max}$.
 \item Step 2: Define a fine sequence $\lambda_{max} \ge \lambda_1 \ge ... \lambda_{min} \ge 0$.
-\item Step 3: To estimate coefficients for the current $\lambda_{k+1}$, implement coordinate descent algorithm using the computed coefficients of the previous $\lambda_{k}$ (warm start) as coefficient start values. 
+\item Step 3: To estimate coefficients of the current $\lambda_{k+1}$, implement coordinate descent algorithm using the computed coefficients of the previous $\lambda_{k}$ (warm start) as coefficient start values. ($\lambda_{k+1}<\lambda_k$)
 \end{itemize}
+
+### Cross Validation
+
+To select the best parameter for the optimal model, we can perform a 5-fold cross validation. 
+
+* Step 1: We shuffle the original dataset randomly.
+* Step 2: Based on the new dataset, we split it into 5 even groups.
+* Step 3: From the 5 groups, we take one group as the test set and the remaining groups as training set. And repeat this procedure until all groups are tested. 
+* Step 4: We fit the model and evaluate on the test set. 
 
 # Results
 
+To select the optimal model, since we have a binary outcome, AUC becomes the evaluation metric for model comparison. 
+
+Through cross validation, the best $\lambda$ we found was $0.981$ with an AUC of $0.996$. 
+
+
 # Conclusions
 
+### Findings
 
-# Appendix
+The primary goal of our project is to build a model to predict a breast tissue sample is benign or malignant. After the exploratory data analysis and collinearity, we dropped 11 highly correlated variables, and 19 variables are remained for full model. We compared a logistic regression model with all variables estimated from Newton Raphson algorithm against an optimal model estimated by LASSO variable selection and path-wise coordinate-wise optimization algorithm, and found that the more optimal model is LASSO which has less predictors and higher AUC value. 
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-library(tidyverse)
-library(caret)
-library(ggcorrplot)
-```
+### Limitations
 
-## data import and data clean
-```{r}
-#load the data
-breast_dat = read.csv("breast-cancer.csv")[, -33] %>% 
-  janitor::clean_names() %>% 
-  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0))
-
-
-head(breast_dat, 5)
-
-r = dim(breast_dat)[1] #row number
-c = dim(breast_dat)[2] #column number
-
-var_names = names(breast_dat)[-c(1,2)] #variable names
-  
-standardize = function(col) {
-  mean = mean(col)
-  sd = sd(col)
-  return((col - mean)/sd)
-}
-
-stand_df = breast_dat %>% 
-  dplyr::select(radius_mean:fractal_dimension_worst) %>% 
-  map_df(.x = ., standardize) #standardize
-
-X = stand_df #predictors
-y = as.vector(ifelse(breast_dat[,2] == "M", 1, 0))#response
-```
-
-## check collinearity
-
-```{r}
-corr = stand_df %>% 
-  cor()
-
-ggcorrplot(corr, type = "upper")
-
-#X = stand_df %>% 
-  #select(radius_mean, texture_mean, smoothness_mean, compactness_mean,
-         #symmetry_mean, fractal_dimension_mean, radius_se, texture_se,
-         #smoothness_se, concavity_se, symmetry_se)
-
-#corr_new = X %>% cor()
-#corr_new
-
-#ggcorrplot(corr_new, type = "upper", lab = TRUE)
-```
-
-# feature plot
-
-```{r}
-data = cbind(y,X)
-
-featurePlot(x = data[, 2:11],
-            y = factor(data$y),
-            plot = "pairs",
-            auto.key = list(columns = 2)
-)
-
-featurePlot(x = data[, 12:21],
-            y = factor(data$y),
-            plot = "pairs",
-            auto.key = list(columns = 2)
-)
-
-featurePlot(x = data[, 22:31],
-            y = factor(data$y),
-            plot = "pairs",
-            auto.key = list(columns = 2)
-)
-```
-
-```{r}
-mean_data = breast_dat %>% 
-  group_by(diagnosis) %>% 
-  summarise(across(radius_mean: fractal_dimension_worst, ~ mean(.x, na.rm = TRUE)))
-```
-
-```{r}
-log_model = glm(diagnosis ~ ., family = binomial("logit"), data  = breast_dat[, -1], start = rep(0, 31))
-summary(log_model)
-```
+We found that Newton Raphson algorithm is unstable during our work procedure. First, the convergence is not guaranteed. Also, it is dependent on the choice of starting value. If we set initial beta at a large value, the function would take no action. Thus, we have to carefully choose a relatively small beta, for example, 0.001 would be an ideal staring point. Besides lambda selection from cross validation is limited, due to intensive computation of cross validation, we chose 50 lambdas to estimate the best value. However, if we have more lambdas, the result of estimation would be more accurate and close to the truth.  
 
 
