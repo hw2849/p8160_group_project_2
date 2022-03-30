@@ -97,7 +97,7 @@ logisticstuff = function(dat, betavec){
  # w = p * (1 - p)
  # w = diag(as.vector(w), nrow = nrow(w))
  # print(w)
-  hess = -(t(x) %*% diag(c(p*(1-p))) %*% x) # hessian matrix
+  hess = -(t(x) %*% diag(as.vector(p * (1 - p))) %*% x) # hessian matrix
   
   return(list(loglik = loglik, grad = grad, hess = hess))
 
@@ -118,29 +118,49 @@ newtonraphson = function(dat, func, start, tol = 1e-8, maxiter = 100){
   res = c(0, stuff$loglik, curbeta)
   prevloglik = -Inf
    
-  while (i < maxiter && abs(stuff$loglik - prevloglik) > tol) {
+  while (i < maxiter && abs(stuff$loglik - prevloglik) > tol && (!is.na(stuff$loglik)) ) {
     i = i + 1
     prevloglik = stuff$loglik
     prev = curbeta
-    curbeta = prev - solve(stuff$hess) %*% stuff$grad
-    stuff = func(dat, curbeta)
 
-    #redirection
-    j = 1
-    while (stuff$loglik < prevloglik) {
-      
-      if (!all(eigen(stuff$hess)$values) < 0) {
-      #gamma = max(eigen(stuff$hess)$values)
-      new_hess = stuff$hess - diag(31)
-      curbeta = prev - solve(new_hess) %*% stuff$grad
-      }
-      else {
-      j = j/2
-      curbeta = prev - j * solve(stuff$hess) %*% stuff$grad
-      }
-    }
+    curbeta  = prev - solve(stuff$hess) %*% stuff$grad
+    stuff = func(dat, curbeta) 
     
-    stuff = func(dat, curbeta)
+    eigen_vals = eigen(stuff$hess)
+    if(max(eigen_vals$values) <= 0 ){ # check neg def, if not change 
+      hess = stuff$hess
+    } else{ # if it is pos def then need to adjust 
+      hess = stuff$hess - (max(eigen_vals$values))*diag(nrow(stuff$hess))
+    } 
+    
+    curbeta  = prev - solve(stuff$hess) %*% stuff$grad
+    stuff = func(dat, curbeta) 
+    
+    j = 1
+    # half step
+      while (stuff$loglik < prevloglik && (!is.na(stuff$loglik)) ) {
+       # stuff <- func(dat, curbeta)
+        j  <- j / 2 
+        curbeta   <- prev - j * solve(stuff$hess) %*% stuff$grad
+        stuff <- func(dat, curbeta)
+      }
+    
+  #  #redirection
+  #  j = 1
+  #  while (stuff$loglik < prevloglik) {
+  #    
+  #    if (!all(eigen(stuff$hess)$values) < 0) {
+  #    #gamma = max(eigen(stuff$hess)$values)
+  #    new_hess = stuff$hess - diag(31)
+  #    curbeta = prev - solve(new_hess) %*% stuff$grad
+  #    }
+  #    else {
+  #    j = j/2
+  #    curbeta = prev - j * solve(stuff$hess) %*% stuff$grad
+  #    }
+  #  }
+  #  
+  #  stuff = func(dat, curbeta)
     res = rbind(res, c(i, stuff$loglik, curbeta))
   }
   return(res)
