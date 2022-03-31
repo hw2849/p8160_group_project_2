@@ -146,14 +146,17 @@ We then can develop a path-wise coordinate-wise optimization algorithm to get a 
 
 To select the best $\lambda$ for the optimal model, a 5-fold cross-validation is performed. 
 
-* Step 1: We shuffle the original dataset randomly.
-* Step 2: Based on the new dataset, we split it into 5 even groups.
-* Step 3: From the 5 groups, we take one group as the test set and the remaining groups as training set. And repeat this procedure until all groups are tested.
-* Step 4: We fit the model and evaluate on the test set. 
+\begin{itemize}
+\item Step 1: Shuffle the original dataset randomly.
+\item Step 2: Split the shuffled dataset into 5 even groups.
+\item Step 3: Take one group as the test set and the remaining groups as the training set. Implement the path-wise coordinate-wise optimization algorithm based on the training data, and then calculate AUC scores for each $\lambda$ using the test data. 
+\item Step 4: Repeat this procedure until each of the 5 groups has been treated as test data, and mean AUC for each $\lambda$ is computed. 
+\end{itemize}
+
 
 # Results
 
-The coefficients of the full logistic regression model based on the training data using **glm()** are shown in **Table 1**. 5 predictors are found to be significant with p values less than 0.05, including **texture_mean**, **concavity_mean**, **radius_se**, **symmetry_worst**. For the logistic-lasso model, the $\lambda_{max}$ is calculated to be 175.62, we then defined a descending sequence of 50 $\lambda$ between $\lambda_{max}$ and $e^{-5}$. Since the outcome is a binary variable, AUC is used as the evaluation metric to compare models. Through the 5-fold cross-validation, the best $\lambda$ is found to be $0.981$ with an average AUC of $0.997$ (**Figure 3**). The coefficients for the best $\lambda$ are shown in **Table 2**. As expected, the optimal logistic-lasso model shrinks some coefficients to 0. 
+The coefficients of the full logistic regression model based on the training data using **glm()** are shown in **Table 1**. 5 predictors are found to be significant with p values less than 0.05, including **texture_mean**, **concavity_mean**, **radius_se**, **symmetry_worst**. For the logistic-lasso model, the $\lambda_{max}$ is calculated to be 175.62, we then defined a descending sequence of 50 $\lambda$ between $\lambda_{max}$ and $e^{-5}$. Since the outcome is a binary variable, AUC is used as the evaluation metric to compare models. Through the 5-fold cross-validation, the best $\lambda$ is found to be $0.981$ with an average AUC of $0.997$ (**Figure 3**). The coefficients for the best $\lambda$ are shown in **Table 2**. As expected, the optimal logistic-lasso model shrinks some coefficients to 0. Predictors remained in the LASSO model are **radius_mean**, **texture_mean**, **concavity_mean**, **radius_se**, **compactness_se**, **fractal_dimension_se**, **smoothness_worst**, **concave_points_worst**, and **symmetry_worst**.
 
 AUC scores of the full logistic regression model and the logistic-lasso model are computed based on the test data to compare prediction performance of the two models. The full model's AUC (0.977) is found to be less than the lasso model's AUC (0.996), thus the optimal lasso model slightly outperforms the full model. 
 
@@ -162,10 +165,10 @@ AUC scores of the full logistic regression model and the logistic-lasso model ar
 
 ### Findings
 
-The primary goal of our project is to build a model to predict a breast tissue sample is benign or malignant. After the exploratory data analysis and collinearity, we dropped 11 highly correlated variables, and 19 variables are remained for full model. We compared a logistic regression model with all variables estimated from Newton Raphson algorithm against an optimal model estimated by LASSO variable selection and path-wise coordinate-wise optimization algorithm, and found that the more optimal model is LASSO which has less predictors and higher AUC value. 
+The primary goal of our project is to build a model to predict whether a breast tissue sample is benign or malignant. After performing the exploratory data analysis, we drop 11 highly correlated variables, and 19 variables are used to fit a full logistic regression model. A Newton-Raphson algorithm is developed to estimate coefficients of the full model. We also compare the full model with a logistic-lasso model whose coefficients are estimated by a path-wise coordinate-wise optimization algorithm. The optimal LASSO model with the best $\lambda$ is selected according to a 5-fold CV, and the optimal LASSO model is found to slightly outperform the full logistic model. Based on the optimal LASSO model, we realize some implications on breast cancer diagnosis. For example, breast tissue samples with higher mean radius tend to indicate malignant cases. On the other hand, the ones with lower compactness standard deviation tend to indicate benign cases. 
 
 ### Limitations
 
-We found that Newton Raphson algorithm is unstable during our work procedure. First, the convergence is not guaranteed. Also, it is dependent on the choice of starting value. If we set initial beta at a large value, the function would take no action. Thus, we have to carefully choose a relatively small beta, for example, 0.001 would be an ideal staring point. Besides lambda selection from cross validation is limited, due to intensive computation of cross validation, we chose 50 lambdas to estimate the best value. However, if we have more lambdas, the result of estimation would be more accurate and close to the truth.  
+We found that Newton-Raphson algorithm is unstable during our work procedure. First, the convergence is not guaranteed, and it depends on the choice of starting values. If we set initial betas at large values, the algorithm would not work. Therefore, we have to carefully choose relatively small starting values. In addition, the number of lambdas in the lambda sequence is limited due to intensive computation of cross validation, thus we defined a sequence of 50 lambdas in the path-wise coordinate-wise optimization algorithm. If we include more lambdas, the selection of the best lambda would be more accurate and close to the truth.  
 
 
