@@ -64,6 +64,35 @@ where $W = p_i(1-p_i)$.
 
 ### Newton-Raphson Algorithm
 
+
+Newton-Raphson algorithm is a method to search for solutions to the system of equations $\nabla f(\beta_0,\beta)=0$. 
+At each step, given the current point $\boldsymbol{\beta}_0$, the gradient $\nabla f(\beta_0,\beta)$ for $\boldsymbol{\beta}$ near $\boldsymbol{\beta}_0$ may be approximated by 
+
+$$
+\nabla f(\beta_0,\beta)+\nabla^2 f(\beta_0,\beta)
+\left(\boldsymbol{\beta}-\boldsymbol{\beta}_{0}\right)
+$$
+
+The next step in the algorithm is determined by solving the system of linear equations
+
+$$
+\nabla f(\beta_0,\beta)+\nabla^2 f(\beta_0,\beta)\left(\boldsymbol{\beta}-\boldsymbol{\beta}_{0}\right)=\mathbf{0}
+$$
+and the next “current point” is set to be the solution, which is a function of $\beta_0$:
+
+$$
+\boldsymbol{\beta}_{1}=\boldsymbol{\beta}_{0}-[\nabla^2 f(\beta_0,\beta)]^{-1} \nabla f(\beta_0,\beta)
+$$
+
+The ith step is given by a function of $\beta_{i-1}$:
+
+$$
+\boldsymbol{\beta}_{i}=\boldsymbol{\beta}_{i-1}-[\nabla^2 f(\beta_{i-1},\beta)]^{-1} \nabla f(\beta_{i-1},\beta)
+$$
+
+The Newton Raphson algorithm iterates through i beta values until the log-likelihood loss has converged. For this project, we uesd an additional half-stepping modiﬁcation to the algorithm to control the number of iteration steps. 
+
+
 ### Path-wise Coordinate-wise Optimization Algorithm for Logistic-Lasso Model
 To obtain a path of coefficients for a descending sequence of tuning parameter $\lambda$, we need to develop a coordinate-wise descent algorithm estimating coefficients for a specific lambda.
 The logistic-lasso can be written as a penalized weighted least-squares problem:
