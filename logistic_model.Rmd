@@ -24,7 +24,7 @@ ggplot2::theme_set(theme_minimal() + theme(legend.position = "bottom"))
 
 
 ## data import and data clean
-```{r}
+```{r, dpi = 300}
 #load the data
 breast = read.csv("breast-cancer.csv") %>% 
   janitor::clean_names() %>% 
@@ -36,14 +36,17 @@ corr = breast[2:31] %>%
 ggcorrplot(corr, type = "upper", tl.cex = 8)
 #remove some highly correlated variables
 breast_dat <- breast %>% dplyr::select(-area_se, -perimeter_se, -area_worst, -perimeter_mean, -perimeter_worst, -area_mean, -radius_worst, -concave_points_mean, -texture_worst, -compactness_mean, -concavity_worst)
+
 corr1 = breast_dat[2:20] %>% 
   cor()
 ggcorrplot(corr1, type = "upper", tl.cex = 8)
+
 #partition data into training and test data
 set.seed(2022)
 trainRows <- createDataPartition(y = breast_dat$diagnosis, p = 0.8, list = FALSE)
 breast_train <- breast_dat[trainRows, ]
 breast_test <-  breast_dat[-trainRows, ]
+
 head(breast_dat, 5)
 r = dim(breast_dat)[1] #row number
 c = dim(breast_dat)[2] #column number
@@ -72,7 +75,7 @@ x_test_stan <- cbind(rep(1, nrow(x_test)), scale(x_test))
 
 # feature plot
 
-```{r}
+```{r, dpi = 300}
 data = cbind(y,X)
 
 featurePlot(x = data[, 2:7],
@@ -104,28 +107,18 @@ mean_data
 ## Full logistic model
 ```{r}
 glm.fit <- glm(diagnosis ~ ., 
-               data = breast_dat, 
-               subset = trainRows, 
-               family = binomial(link = "logit"))
-<<<<<<< HEAD
-summary(glm.fit)$coeffcients
-glm.fit$coefficients
-coef(glm.fit) %>% knitr::kable()
+               data = breast_train, 
+               family = binomial)
 
-=======
-summary(glm.fit)
->>>>>>> 6bf0ee4fb14eb8da1f68df1aefa8e714c6482663
-pred <- predict(glm.fit, newdata = breast_test, type = "response")
+summary(glm.fit)$coefficients %>% knitr::kable()
+
+glm.fit %>% predict(breast_test, type = "response")
+pred <- predict(glm.fit, breast_test, type = "response")
 y_test <- factor(breast_test$diagnosis)
 auc_full <- auc(y_test, pred)
 auc_full
 ```
 
-
-<<<<<<< HEAD
-
-
-=======
 ## Newton-Raphson algorithm
 
 ```{r}
@@ -149,8 +142,8 @@ logisticstuff = function(dat, betavec){
   return(list(loglik = loglik, grad = grad, hess = hess))
 }
 beta = rep(1, 20) 
-test = logisticstuff(breast_train, betavec = beta)
-test$loglik
+#test = logisticstuff(breast_train, betavec = beta)
+#test$loglik
 ```
 
 ```{r haotian lin}
@@ -165,8 +158,6 @@ newtonraphson = function(dat, func, start, tol = 1e-10, maxiter = 200){
     i = i + 1
     prevloglik = stuff$loglik
     prev = curbeta
-<<<<<<< HEAD
-
     curbeta  = prev - solve(stuff$hess) %*% stuff$grad
     stuff = func(dat, curbeta) 
     
@@ -188,7 +179,6 @@ newtonraphson = function(dat, func, start, tol = 1e-10, maxiter = 200){
         curbeta   <- prev - j * solve(stuff$hess) %*% stuff$grad
         stuff <- func(dat, curbeta)
       }
-=======
     curbeta = prev - solve(stuff$hess) %*% stuff$grad
     stuff = func(dat, curbeta)
     #redirection
@@ -207,7 +197,6 @@ newtonraphson = function(dat, func, start, tol = 1e-10, maxiter = 200){
       }
       
     }
->>>>>>> b3100da05558fc9a2e36d58b1088af49803aadda
     
   #  #redirection
   #  j = 1
@@ -231,11 +220,9 @@ newtonraphson = function(dat, func, start, tol = 1e-10, maxiter = 200){
 }
 res = newtonraphson(breast_train, logisticstuff, beta)
 ```
->>>>>>> 6bf0ee4fb14eb8da1f68df1aefa8e714c6482663
 
 ## coordinate-wise optimization of a logistic-lasso model
 
-<<<<<<< HEAD
 ```{r}
 x_train <- breast_train[2:20] #predictors
 y_train <- breast_train[1] #response
@@ -244,8 +231,6 @@ x_test <- breast_test[2:20]
 y_test <- breast_test[1]
 ```
 
-=======
->>>>>>> 78ea447f5ee1bc4aea1da5196d417feacfb8a26c
 
 ```{r}
 #soft threshold
@@ -327,6 +312,22 @@ round(pathwise_sol, 2) %>% knitr::kable()
 ```
 
 
+```{r}
+colnames(pathwise_sol) <- c("lambda", rownames(coef(summary(glm.fit))))
+pathwise_sol %>% 
+  pivot_longer(
+    3:21,
+    names_to = "variables",
+    values_to = "coefficients") %>% 
+  ggplot(aes(x = log(lambda), y = coefficients, group = variables, color = variables)) +
+  geom_line() + 
+  geom_vline(xintercept = log(0.981), linetype = 2) +
+  ggtitle("A path of solutions for a descending sequence of lambda") +
+  xlab("log(Lambda)") + 
+  ylab("Coefficients")
+```
+
+
 ## cross-validation
 ```{r}
 set.seed(2022)
@@ -377,13 +378,7 @@ cv = function(data, lambda) {
   #return(cv.auc.lambda)
 }
 cv_test = cv(data = breast_train, lambda_seq2)
-<<<<<<< HEAD
-lll <- as.data.frame(cv_test) #colnames(c("auc1", "auc2", "auc3", "auc4", "auc5"))
-colnames(lll) <- c("res", "auc1", "auc2", "auc3", "auc4", "auc5")
-lll<-lll %>% dplyr::select(-1)
-mean <- rowMeans(lll)
-max(mean)
-=======
+
 
 cv_res <- as.data.frame(cv_test) #colnames(c("auc1", "auc2", "auc3", "auc4", "auc5"))
 colnames(cv_res) <- c("res", "auc1", "auc2", "auc3", "auc4", "auc5")
@@ -399,7 +394,6 @@ cv_auc %>%
   labs(title = "Mean AUC vs. Lambda",
        x = "Lambda",
        y = "Mean AUC")
->>>>>>> 78ea447f5ee1bc4aea1da5196d417feacfb8a26c
 ```
 
 
@@ -412,11 +406,7 @@ lasso_beta <- pathwise_sol[which(pathwise_sol$lambda == bestlambda ),][2:21] %>%
 predict <- function(x, y, betavec) {
   theta <- x %*% betavec
   p <- exp(theta) / (1 + exp(theta))
-  auc <- auc(y, p)
-}
-<<<<<<< HEAD
-```
-=======
+  auc <- auc(y, p)}
 
 auc_lasso <- predict(x_test_stan, y_test, lasso_beta)
 auc_lasso
@@ -433,4 +423,3 @@ coefnames <- rownames(coef(summary(glm.fit)))
 cbind(coefnames, glm_beta, lasso_beta) %>% knitr::kable()
 ```
 
->>>>>>> 78ea447f5ee1bc4aea1da5196d417feacfb8a26c

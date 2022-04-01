@@ -8,7 +8,7 @@ output: pdf_document
 ---
 # Objectives
 
-A mammogram is an X-ray image of breast tissue. It can help save lives because it is easier to treat breast cancer in its early stages before the cancer is big enough to detect or cause symptoms. However, a wrong diagnosis can have a negative impact on patients. For example, if there is a false-positive test result, the doctor sees something that looks like cancer but is not. This could result in overtreatment that causes unnecessary side effects on patients. On the other hand, false-negative test result occurs when a doctor misses cancer tissues, which may delay the treatment. Therefore, building a model that gives an accurate classification of the tissue images is necessary to give proper treatment. In our study, we collected 569 images from both malignant and benign cancer tissues. Our goal is to build a predictive model to facilitate cancer diagnosis.
+A mammogram is an X-ray image of breast tissue. It can help save lives because it is easier to treat breast cancer in its early stages before the cancer is big enough to detect or cause symptoms. However, a wrong diagnosis can have a negative impact on patients. For example, if there is a false-positive test result, the doctor sees something that looks like cancer but is not. This could result in overtreatment that causes unnecessary side effects on patients. On the other hand, false-negative test result occurs when a doctor misses cancer tissues, which may delay the treatment$^1$. Therefore, building a model that gives an accurate classification of the tissue images is necessary to give proper treatment. In our study, we collected 569 images from both malignant and benign cancer tissues. Our goal is to build a predictive model to facilitate cancer diagnosis.
 
 # Dataset
 
@@ -28,9 +28,9 @@ Our data set consists of 569 rows, with 357 benign and 212 malignant. We denote 
 
 # EDA
 
-Before building the model, we want have a close look at the dataset. Therefore, we first examine the correlation between variables. The squares with dark color in the correlation plot has strong correlation with each other. We can see there is very strong correlation between radius, perimeter and area across mean, standard deviation, and the largest values. We decided to drop some variables with correlation larger than 0.7. The variables we dropped are perimeter_mean, area_mean, compactness_mean, concave_points_mean, perimeter_se, area_se, radius_worst, texture_worst, perimeter_worst, area_worst, and concavity_worst (11 variables).
+Before building the model, we want have a close look at the dataset. Therefore, we first examine the correlation between variables(**Figure 1**). The squares with dark color in the correlation plot has strong correlation with each other. We can see there is very strong correlation between radius, perimeter and area across mean, standard deviation, and the largest values. We decided to drop some variables with correlation larger than 0.7. The variables we dropped are perimeter_mean, area_mean, compactness_mean, concave_points_mean, perimeter_se, area_se, radius_worst, texture_worst, perimeter_worst, area_worst, and concavity_worst (11 variables).
 
-After that, we built feature plot to analyze the relationship between variables after removing the variables with high correlation. From this plot, we can see that there are no strong relationship between variables after removing. We also found that the points for benign tissues are often locate at left-bottom side, which indicates the benign tissues usually have smaller feature values compared to malignant tissues.
+After that, we built feature plot to analyze the relationship between variables after removing the variables with high correlation (**Figure 2**). From this plot, we can see that there are no strong relationship between variables after removing. We also found that the points for benign tissues are often locate at left-bottom side, which indicates the benign tissues usually have smaller feature values compared to malignant tissues.
 
 We also calculated the mean of each variables to compare values between benign and malignant cases. According to the average values of the mean of each feature, we can find that benign tissues have smaller values compared to malignant tissues, except for fractal dimension. There is no general pattern for the average values of the standard deviations. Based the average values of the largest value of each feature, we can find that benign tissues have smaller largest values compared to malignant tissues.
 
@@ -41,7 +41,7 @@ To compare prediction performance of different models, the dataset is partitione
 
 ### Logistic Regression Model
 
-Let \textit{y} be the vector with 569 binary response variable, \textit{X} be the $569 \times 30$ matrix with 30 numerical explanatory variables, and \textit{$\beta$} be the vector with 30 corresponding coefficients. We also have \textit{$\beta_0$} as the intercepts.
+Let \textit{y} be the vector with 569 binary response variable, \textit{X} be the $569 \times 19$ matrix with 19 numerical explanatory variables, and \textit{$\beta$} be the vector with 19 corresponding coefficients. We also have \textit{$\beta_0$} as the intercept.
 
 For our logistic model, the probability of \textit{i}th row be a malignant tissue is given by:
 \[P(y_i=1|X_i) = \frac{e^{\beta_0+\beta X_i}}{1+e^{\beta_0+\beta X_i}}.\]
@@ -93,9 +93,9 @@ $$
 The Newton Raphson algorithm iterates through i beta values until the log-likelihood loss has converged. For this project, we uesd an additional half-stepping modiﬁcation to the algorithm to control the number of iteration steps. 
 
 
-### Path-wise Coordinate-wise Optimization Algorithm for Logistic-Lasso Model
+### Path-wise Coordinate-wise Optimization Algorithm for Logistic-LASSO Model
 To obtain a path of coefficients for a descending sequence of tuning parameter $\lambda$, we need to develop a coordinate-wise descent algorithm estimating coefficients for a specific lambda.
-The logistic-lasso can be written as a penalized weighted least-squares problem:
+The logistic-LASSO can be written as a penalized weighted least-squares problem:
 
 $$
 \min _{\left(\beta_{0}, \boldsymbol{\beta}_{1}\right)} L\left(\beta_{0}, \boldsymbol{\beta}_{1}, \lambda\right)=\left\{-\ell\left(\beta_{0}, \boldsymbol{\beta}_{1}\right)+\lambda \sum_{j=0}^{p}\left|\beta_{j}\right|\right\}
@@ -144,28 +144,28 @@ We then can develop a path-wise coordinate-wise optimization algorithm to get a 
 
 ### Cross Validation
 
-To select the best $\lambda$ for the optimal model, a 5-fold cross-validation is performed. 
+To select the best $\lambda$ for the optimal model, a 5-fold cross-validation is performed (**Figure 3**). 
 
 \begin{itemize}
 \item Step 1: Shuffle the original dataset randomly.
 \item Step 2: Split the shuffled dataset into 5 even groups.
 \item Step 3: Take one group as the test set and the remaining groups as the training set. Implement the path-wise coordinate-wise optimization algorithm based on the training data, and then calculate AUC scores for each $\lambda$ using the test data. 
-\item Step 4: Repeat this procedure until each of the 5 groups has been treated as test data, and mean AUC for each $\lambda$ is computed. 
+\item Step 4: Repeat this procedure until each of the 5 groups has been treated as test data, and mean AUC for each $\lambda$ is computed$^2$. 
 \end{itemize}
 
 
 # Results
 
-The coefficients of the full logistic regression model based on the training data using **glm()** are shown in **Table 1**. 5 predictors are found to be significant with p values less than 0.05, including **texture_mean**, **concavity_mean**, **radius_se**, **symmetry_worst**. For the logistic-lasso model, the $\lambda_{max}$ is calculated to be 175.62, we then defined a descending sequence of 50 $\lambda$ between $\lambda_{max}$ and $e^{-5}$. Since the outcome is a binary variable, AUC is used as the evaluation metric to compare models. Through the 5-fold cross-validation, the best $\lambda$ is found to be $0.981$ with an average AUC of $0.997$ (**Figure 3**). The coefficients for the best $\lambda$ are shown in **Table 2**. As expected, the optimal logistic-lasso model shrinks some coefficients to 0. Predictors remained in the LASSO model are **radius_mean**, **texture_mean**, **concavity_mean**, **radius_se**, **compactness_se**, **fractal_dimension_se**, **smoothness_worst**, **concave_points_worst**, and **symmetry_worst**.
+The coefficients of the full logistic regression model based on the training data using **glm()** are shown in **Table 1**. 5 predictors are found to be significant with p values less than 0.05, including **texture_mean**, **concavity_mean**, **radius_se**, **symmetry_worst**. For the logistic-LASSO model, the $\lambda_{max}$ is calculated to be 175.62, we then defined a descending sequence of 50 $\lambda$ between $\lambda_{max}$ and $e^{-5}$. Since the outcome is a binary variable, AUC is used as the evaluation metric to compare models. Through the 5-fold cross-validation, the best $\lambda$ is found to be $0.981$ with an average AUC of $0.997$ (**Figure 4**). From the plot of the path solutions, we can see that beta coefficients start to diverge at log(0.981) (**Figure 5**). The coefficients for the best $\lambda$ are shown in **Table 2**. As expected, the optimal logistic-LASSO model shrinks some coefficients to 0. 9 of 19 predictors remain in the LASSO model: **radius_mean**, **texture_mean**, **concavity_mean**, **radius_se**, **compactness_se**, **fractal_dimension_se**, **smoothness_worst**, **concave_points_worst**, and **symmetry_worst**.
 
-AUC scores of the full logistic regression model and the logistic-lasso model are computed based on the test data to compare prediction performance of the two models. The full model's AUC (0.977) is found to be less than the lasso model's AUC (0.996), thus the optimal lasso model slightly outperforms the full model. 
+AUC scores of the full logistic regression model and the optimal logistic-LASSO model are computed based on the test data to compare prediction performance of the two models. The full model's AUC (0.977) is found to be less than the LASSO model's AUC (0.996), thus the optimal LASSO model slightly outperforms the full model. 
 
 
 # Conclusions
 
 ### Findings
 
-The primary goal of our project is to build a model to predict whether a breast tissue sample is benign or malignant. After performing the exploratory data analysis, we drop 11 highly correlated variables, and 19 variables are used to fit a full logistic regression model. A Newton-Raphson algorithm is developed to estimate coefficients of the full model. We also compare the full model with a logistic-lasso model whose coefficients are estimated by a path-wise coordinate-wise optimization algorithm. The optimal LASSO model with the best $\lambda$ is selected according to a 5-fold CV, and the optimal LASSO model is found to slightly outperform the full logistic model. Based on the optimal LASSO model, we realize some implications on breast cancer diagnosis. For example, breast tissue samples with higher mean radius tend to indicate malignant cases. On the other hand, the ones with lower compactness standard deviation tend to indicate benign cases. 
+The primary goal of our project is to build a model to predict whether a breast tissue sample is benign or malignant. After performing the exploratory data analysis, we drop 11 highly correlated variables, and 19 variables are used to fit a full logistic regression model. A Newton-Raphson algorithm is developed to estimate coefficients of the full model. We also compare the full model with a logistic-LASSO model whose coefficients are estimated by a path-wise coordinate-wise optimization algorithm. The optimal LASSO model with the best $\lambda$ is selected according to a 5-fold CV, and the optimal LASSO model is found to slightly outperform the full logistic model. Based on the optimal LASSO model, we realize some implications on breast cancer diagnosis. For example, breast tissue samples with higher mean radius tend to indicate malignant cases. On the other hand, the ones with lower compactness standard deviation tend to indicate benign cases. 
 
 ### Limitations
 

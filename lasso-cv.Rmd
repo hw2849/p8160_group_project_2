@@ -413,3 +413,8 @@ beta = rep(1, 20)
 test = logisticstuff(breast_train, betavec = beta)
 test$loglik
 ```
+
+
+
+
+
