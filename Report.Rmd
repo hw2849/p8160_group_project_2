@@ -30,9 +30,98 @@ Our data set consists of 569 rows, with 357 benign and 212 malignant. We denote 
 
 Before building the model, we want have a close look at the dataset. Therefore, we first examine the correlation between variables(**Figure 1**). The squares with dark color in the correlation plot has strong correlation with each other. We can see there is very strong correlation between radius, perimeter and area across mean, standard deviation, and the largest values. We decided to drop some variables with correlation larger than 0.7. The variables we dropped are perimeter_mean, area_mean, compactness_mean, concave_points_mean, perimeter_se, area_se, radius_worst, texture_worst, perimeter_worst, area_worst, and concavity_worst (11 variables).
 
+<<<<<<< HEAD
 After that, we built feature plot to analyze the relationship between variables after removing the variables with high correlation (**Figure 2**). From this plot, we can see that there are no strong relationship between variables after removing. We also found that the points for benign tissues are often locate at left-bottom side, which indicates the benign tissues usually have smaller feature values compared to malignant tissues.
+=======
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(caret)
+library(ggcorrplot)
+library(MASS)
+library(pROC)
+library(glmnet)
+```
+
+```{r, include=FALSE}
+#load the data
+breast = read.csv("breast-cancer.csv") %>% 
+  janitor::clean_names() %>% 
+  dplyr::select(-1, -33) %>% #drop id and NA columns
+  mutate(diagnosis = recode(diagnosis, "M" = 1, "B" = 0))
+#check collinearity
+corr = breast[2:31] %>% 
+  cor()
+```
+
+```{r}
+ggcorrplot(corr, type = "upper", tl.cex = 8)
+```
+
+```{r, include=FALSE}
+#remove some highly correlated variables
+breast_dat <- breast %>% dplyr::select(-area_se, -perimeter_se, -area_worst, -perimeter_mean, -perimeter_worst, -area_mean, -radius_worst, -concave_points_mean, -texture_worst, -compactness_mean, -concavity_worst)
+corr1 = breast_dat[2:20] %>% 
+  cor()
+ggcorrplot(corr1, type = "upper", tl.cex = 8)
+#partition data into training and test data
+set.seed(2022)
+trainRows <- createDataPartition(y = breast_dat$diagnosis, p = 0.8, list = FALSE)
+breast_train <- breast_dat[trainRows, ]
+breast_test <-  breast_dat[-trainRows, ]
+head(breast_dat, 5)
+r = dim(breast_dat)[1] #row number
+c = dim(breast_dat)[2] #column number
+var_names = names(breast_dat)[-c(1,2)] #variable names
+  
+standardize = function(col) {
+  mean = mean(col)
+  sd = sd(col)
+  return((col - mean)/sd)
+}
+stand_df = breast_dat %>% 
+  dplyr::select(radius_mean:fractal_dimension_worst) %>% 
+  map_df(.x = ., standardize) #standardize
+X = stand_df #predictors
+y = breast_dat[,1]#response
+```
+
+```{r, include=FALSE}
+x_train <- breast_train[2:20] #predictors
+y_train <- breast_train[1] #response
+x_train_stan <- cbind(rep(1, nrow(x_train)), scale(x_train))
+
+x_test <- breast_test[2:20]
+x_test_stan <- cbind(rep(1, nrow(x_test)), scale(x_test))
+data = cbind(y,X)
+```
+
+After that, we built feature plot to analyze the relationship between variables after removing the variables with high correlation. From this plot, we can see that there are no strong relationship between variables after removing. We also found that the points for benign tissues are often locate at left-bottom side, which indicates the benign tissues usually have smaller feature values compared to malignant tissues.
+>>>>>>> 8f89e635de9010a57298446847ba2182d0938b0b
+
+```{r}
+featurePlot(x = data[, 2:7],
+            y = factor(data$y),
+            plot = "pairs",
+            auto.key = list(columns = 2)
+)
+```
 
 We also calculated the mean of each variables to compare values between benign and malignant cases. According to the average values of the mean of each feature, we can find that benign tissues have smaller values compared to malignant tissues, except for fractal dimension. There is no general pattern for the average values of the standard deviations. Based the average values of the largest value of each feature, we can find that benign tissues have smaller largest values compared to malignant tissues.
+
+```{r, include=FALSE}
+mean_data = breast_dat %>% 
+  group_by(diagnosis) %>% 
+  summarise(across(radius_mean: fractal_dimension_worst, ~ mean(.x, na.rm = TRUE)))
+```
+
+```{r}
+mean_data[, 2:7] %>% knitr::kable()
+mean_data[, 8:15] %>% knitr::kable()
+mean_data[, 16:20] %>% knitr::kable()
+```
+
 
 To compare prediction performance of different models, the dataset is partitioned into the training data (0.8) and the test data (0.2).
 
@@ -170,5 +259,8 @@ The primary goal of our project is to build a model to predict whether a breast 
 ### Limitations
 
 We found that Newton-Raphson algorithm is unstable during our work procedure. First, the convergence is not guaranteed, and it depends on the choice of starting values. If we set initial betas at large values, the algorithm would not work. Therefore, we have to carefully choose relatively small starting values. In addition, the number of lambdas in the lambda sequence is limited due to intensive computation of cross validation, thus we defined a sequence of 50 lambdas in the path-wise coordinate-wise optimization algorithm. If we include more lambdas, the selection of the best lambda would be more accurate and close to the truth.  
+
+# Reference
+1.CDCBreastCancer. What Is Breast Cancer Screening? Centers for Disease Control and Prevention https://www.cdc.gov/cancer/breast/basic_info/screening.htm (2022).
 
 
